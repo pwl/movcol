@@ -37,7 +37,7 @@ contains
     real(8), dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
     real(8) :: eps
-    eps = 1.d-4
+    eps = 1.e-4
     if (index.lt.0) fg (1) = ut (1)
     if (index.gt.0) fg (1) = eps * ux (1) - u (1) **2 / 2.d0
   end subroutine defpde
@@ -278,8 +278,8 @@ program ex1
   rtol = 1.d-5
 
   ! output times
-  allocate(touta(5))
-  touta = [0.00, 0.25, 0.50, 0.75, 1.00]
+  allocate(touta(4))
+  touta = [0.00, 0.25, 0.55, 1.00]
 
   ! solve the equations
   call my_eqn%solve(atol, rtol, touta, iflag, "soln.dat")

@@ -4,18 +4,18 @@ module movcol_mod
 
   ! numerical parameters
   real(8), parameter ::&
-       &zero = 0.0,&
-       &quart = 0.25,&
-       &half = 0.5,&
-       &one  = 1.0,&
-       &two  = 2.0,&
-       &three= 3.0,&
-       &four = 4.0,&
-       &six  = 6.0
+       &zero  = 0.0  ,&
+       &quart = 0.25 ,&
+       &half  = 0.5  ,&
+       &one   = 1.0  ,&
+       &two   = 2.0  ,&
+       &three = 3.0  ,&
+       &four  = 4.0  ,&
+       &six   = 6.0
 
   ! algorithm parameters?
   real(8), parameter ::&
-       &tau1 = 1.-4,&
+       &tau1 = 1.e-4,&
        &s1 = 0.211324865347452,&
        &s2 = 0.788675134652548
 
@@ -175,15 +175,12 @@ module movcol_mod
       eqn%right_end => eqn%par(9)
 
       ! set the default values for parameters
+      ! set the whole table to -1
       eqn%par       = -1
-      eqn%job       = 2
-      eqn%output    = 6
-      eqn%mmpde     = 4
-      eqn%tau       = 1.e-4
-      eqn%gamma     = 1
-      eqn%ip        = 2
-      eqn%left_end  = 0
-      eqn%right_end = 1
+      ! then set the particular parameters
+      eqn%output    = 6         !par(2)
+      eqn%left_end  = 0         !par(8)
+      eqn%right_end = 1         !par(9)
 
     end subroutine movcol_init
 
@@ -680,7 +677,7 @@ module movcol_mod
       class(problem_movcol), target :: eqn
       real(8) :: touta(:)
 
-      integer :: liw, lrw, ntouta, npts, npde
+      integer :: liw, lrw, ntouta, npts, npde, i
       real(8), pointer :: par(:), rwork(:)
       integer, pointer :: iwork(:)
 
@@ -694,7 +691,7 @@ module movcol_mod
       npts = eqn%npts
       npde = eqn%npde
 !
-      zrmch = zermch (dum)
+      zrmch = epsilon(dum)
       iflag = 0
 !
 !...check basic parameters job, inform, mmpde, tau, gamma, ip and
@@ -796,14 +793,21 @@ module movcol_mod
 !
 !...call movcl1
 !
+      open(unit=111, file="par.dat")
+      do i = 1, 20
+         write(111,"(i5,f10.5)") i, par(i)
+      end do
+      close(111)
+
       call movcl1 (eqn, npde, npts, job, inform, iflag, xl, xr, mmpde,&
            & tau, gamma, ip, atol, rtol, stpmax, touta, ntouta,&
-           & rwork (1:npts * (2 * npde+1)),&
-           & rwork (neq + 1:neq + 1+npts * (2 * npde+1)),&
-           & rwork (2 * neq + 1:2 * neq + 1+lrw),&
+           & rwork (1            : neq                      ),&      !y
+           & rwork (1+neq        : neq        + neq         ),&      !ydot
+           & rwork (1+2*neq      : 2*neq      + lrw0        ),&      !rwk
            & lrw0, iwork, liw,&
-           & rwork (2 * neq + lrw0 + 1:2 * neq + lrw0 + 1+lrw1), lrw1)
-!
+           & rwork (1+2*neq+lrw0 : 2*neq+lrw0 + lrw1 ), lrw1)      !rwk1
+      print *, lrw, lrw0, lrw1
+      !
       return
 !
 99910 format(                                                           &
@@ -845,9 +849,9 @@ module movcol_mod
 !...this is the main subroutine.
 !...the relationships between y, ydot, and (x, u) are
 !...
-!...       y(m*i)               := x_i(t)
 !...       y(m*(i-1)+2*(k-1)+1) := u_k(x_i(t),t)
 !...       y(m*(i-1)+2*(k-1)+2) := (u_k)_x(x_i(t),t)
+!...       y(m*(i-1)        +m) := x_i(t)
 !...
 !...                               k = 1, ..., npde
 !...                               i = 1, ..., npts
@@ -898,26 +902,29 @@ module movcol_mod
 !     for solving the physical pde
       if (phypde) then
          call eqn%defmsh (rwk1 (m21 + 1) )
-         do 10 i = 1, npts
+         do i = 1, npts
             y (m * i) = rwk1 (m21 + i)
-   10    end do
+         end do
       endif
 !
 !     the mesh generation case: starting from a uniform mesh
       if (.not.phypde) then
-         do 15 i = 1, npts
+         do i = 1, npts
             y (m * i) = xl + (xr - xl) * (i - 1) / (npts - 1)
-   15    end do
+         end do
       endif
+
 !
 !...print the headers
 !
       write (inform, 99920)
+!  this is the entry point for one of the gotos
    20 if (phypde) then
          write (inform, 99930)
       else
          write (inform, 99940)
       endif
+
 !
 !...values for t, y and ydot which are consistent with the ode
 !...system (arising in the method of lines procedure) are
@@ -932,7 +939,10 @@ module movcol_mod
 !
 !...compute the initial values of the physical solution
 !
+      open(unit=111, file="defivs.dat")
+
       if (phypde) then
+         print *, "phypde = ",phypde
 !        the case of solving the physical pdes
          do i = 1, npts
             call eqn%defivs (y (m * i), rwk1 (m11 + 1), rwk1 (m12 + 1))
@@ -940,6 +950,9 @@ module movcol_mod
                y (m * (i - 1) + 2 * (k - 1) + 1) = rwk1 (m11 + k)
                y (m * (i - 1) + 2 * (k - 1) + 2) = rwk1 (m12 + k)
             end do
+
+            write(111,"(i10,3f30.10)") i, y(m*i),y(m*(i-1)+1), y(m*(i-1)+2)
+
          end do
       else
 !        the mesh generation case
@@ -950,6 +963,8 @@ module movcol_mod
             end do
          end do
       endif
+
+      close(111)
 !
 !...define the input parameters for subroutine resode
 !
@@ -1006,8 +1021,34 @@ module movcol_mod
       atol1 = one
       rtol1 = one
       do 50 itout = 1, 2
+         open(unit=111, file="defivs.dat")
+         write(111,*) "phypde = ", phypde
+         write(111,*) "t = ", t
+         write(111,*) "y = ", y(1:(2*npde+1))
+         write(111,*) "ydot = ", ydot(1:(2*npde+1))
+         write(111,*) "tout = ", tout
+         write(111,*) "rtol1 = ", rtol1
+         write(111,*) "atol1 = ", atol1
+         do i = 1, 8635
+            write(111,"(i10,f30.10)") i, eqn%rwork(i)
+         end do
+
          call eqn%ddassl (neq, t, y, ydot, tout, info, rtol1, atol1,&
          idid, rwk, lrw, iwk, liw, rwk1, iwk1)
+
+         write(111,*) "phypde = ", phypde
+         write(111,*) "t = ", t
+         write(111,*) "y = ", y(1:(2*npde+1))
+         write(111,*) "ydot = ", ydot(1:(2*npde+1))
+         write(111,*) "tout = ", tout
+         write(111,*) "rtol1 = ", rtol1
+         write(111,*) "atol1 = ", atol1
+         do i = 1, 8635
+            write(111,"(i10,f30.10)") i, eqn%rwork(i)
+         end do
+         close(111)
+         stop
+
    50 end do
 !
 !...now begin the actual numerical integration
@@ -1269,7 +1310,6 @@ module movcol_mod
 !...this dummy routine is required by ddassl
 !
       class(problem_movcol) :: eqn
-      integer :: ires
       integer, dimension(*) :: iwk
       real(8) :: t, cj
       real(8), dimension(*) :: y, ydot, rwk
