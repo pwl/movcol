@@ -4,20 +4,23 @@ module movcol_mod
 
   ! numerical parameters
   real(8), parameter ::&
-       &zero  = 0.0  ,&
-       &quart = 0.25 ,&
-       &half  = 0.5  ,&
-       &one   = 1.0  ,&
-       &two   = 2.0  ,&
-       &three = 3.0  ,&
-       &four  = 4.0  ,&
-       &six   = 6.0
+       &zero  = 0.0_8  ,&
+       &quart = 0.25_8 ,&
+       &half  = 0.5_8  ,&
+       &one   = 1.0_8  ,&
+       &two   = 2.0_8  ,&
+       &three = 3.0_8  ,&
+       &four  = 4.0_8  ,&
+       &six   = 6.0_8
 
   ! algorithm parameters?
   real(8), parameter ::&
-       &tau1 = 1.e-4,&
-       &s1 = 0.211324865347452,&
-       &s2 = 0.788675134652548
+       &tau1 = 1.e-4_8,&
+       &s1 = 0.211324865347452d0,&
+       &s2 = 0.788675134652548d0
+
+  ! real(16), parameter ::&
+  !      &tau2 = 0.0001_16
 
   private
 
@@ -27,7 +30,7 @@ module movcol_mod
      integer, allocatable, private :: iwork(:)
 
      ! pointers to the physical quantities
-     real(8), pointer :: x(:), u(:,:)
+     real(8), pointer :: x(:), u(:,:), ux(:,:), y(:,:), ydot(:,:)
 
      ! print times
      real(8), allocatable :: touta(:)
@@ -48,7 +51,7 @@ module movcol_mod
      integer :: npts, npde
 
      ! output file id
-     integer :: nprnt
+     integer :: nprnt = 111
    contains
      private
 
@@ -147,6 +150,9 @@ module movcol_mod
       ! ipmax?
       integer :: ipmax = 4
 
+      ! number of dependent values per mesh point
+      integer :: m
+
       eqn%npde  = npde
       eqn%npts  = npts
 
@@ -157,6 +163,11 @@ module movcol_mod
 
       allocate(eqn%rwork(lrw))
       allocate(eqn%iwork(liw))
+
+      ! initialize work arrays with zeroes
+      eqn%rwork = 0.0_8
+      eqn%iwork = 0
+
 
       ! if the touta table was not allocate, allocate it as an empty table
       if(.not. allocated(eqn%touta)) then
@@ -181,6 +192,14 @@ module movcol_mod
       eqn%output    = 6         !par(2)
       eqn%left_end  = 0         !par(8)
       eqn%right_end = 1         !par(9)
+
+      m = 2*npde+1
+      eqn%y   (1:m,1:npts) => eqn%rwork(1       :  m*npts)
+      eqn%ydot(1:m,1:npts) => eqn%rwork(m*npts+1:2*npts*m)
+
+      eqn%x  => eqn%y(m,            :)
+      eqn%u  => eqn%y(1:npde,       :)
+      eqn%ux => eqn%y(npde+1:2*npde,:)
 
     end subroutine movcol_init
 
@@ -211,7 +230,6 @@ module movcol_mod
       write (6, 99995) tcpu
       close (eqn%nprnt)
       !
-      stop
 99995 format(/' **** cpu time for mesh movement: ', f12.2/)
 
     end subroutine movcol_solve
@@ -678,6 +696,7 @@ module movcol_mod
       real(8) :: touta(:)
 
       integer :: liw, lrw, ntouta, npts, npde, i
+      real(8) :: tau
       real(8), pointer :: par(:), rwork(:)
       integer, pointer :: iwork(:)
 
@@ -805,7 +824,7 @@ module movcol_mod
            & rwork (1+neq        : neq        + neq         ),&      !ydot
            & rwork (1+2*neq      : 2*neq      + lrw0        ),&      !rwk
            & lrw0, iwork, liw,&
-           & rwork (1+2*neq+lrw0 : 2*neq+lrw0 + lrw1 ), lrw1)      !rwk1
+           & rwork (1+2*neq+lrw0 : 2*neq+lrw0 + lrw1 ), lrw1)        !rwk1
       print *, lrw, lrw0, lrw1
       !
       return
@@ -890,7 +909,7 @@ module movcol_mod
       m31 = 20 + 6 * npde+2 * npts
       m32 = 20 + 6 * npde+2 * npts + 1 * npde * npts
       m33 = 20 + 6 * npde+2 * npts + 2 * npde * npts
-      zrmch = zermch (dum)
+      zrmch = epsilon (1.0d0)
 !     phypde = 'true' for solving the physical pdes
 !     phypde = 'false' for generating a mesh
       if (job.eq.1) phypde = .true.
@@ -901,10 +920,7 @@ module movcol_mod
 !
 !     for solving the physical pde
       if (phypde) then
-         call eqn%defmsh (rwk1 (m21 + 1) )
-         do i = 1, npts
-            y (m * i) = rwk1 (m21 + i)
-         end do
+         call eqn%defmsh(eqn%x)
       endif
 !
 !     the mesh generation case: starting from a uniform mesh
@@ -939,29 +955,16 @@ module movcol_mod
 !
 !...compute the initial values of the physical solution
 !
-      open(unit=111, file="defivs.dat")
-
       if (phypde) then
          print *, "phypde = ",phypde
 !        the case of solving the physical pdes
          do i = 1, npts
-            call eqn%defivs (y (m * i), rwk1 (m11 + 1), rwk1 (m12 + 1))
-            do k = 1, npde
-               y (m * (i - 1) + 2 * (k - 1) + 1) = rwk1 (m11 + k)
-               y (m * (i - 1) + 2 * (k - 1) + 2) = rwk1 (m12 + k)
-            end do
-
-            write(111,"(i10,3f30.10)") i, y(m*i),y(m*(i-1)+1), y(m*(i-1)+2)
-
+            call eqn%defivs(eqn%x(i),eqn%u(:,i),eqn%ux(:,i))
          end do
       else
 !        the mesh generation case
-         do i = 1, npts
-            do k = 1, npde
-               y (m * (i - 1) + 2 * (k - 1) + 1) = zero
-               y (m * (i - 1) + 2 * (k - 1) + 2) = zero
-            end do
-         end do
+         eqn%u  = 0.0_8
+         eqn%ux = 0.0_8
       endif
 
       close(111)
@@ -982,16 +985,17 @@ module movcol_mod
 !
 !...define the input parameters for ddassl
 !
-      do 35 i = 1, 15
+      do i = 1, 15
          info (i) = 0
-   35 end do
+      end do
+
       info (3) = 1
       info (6) = 1
 !        define the lower and upper bandwidths for the jacobian
       if (mmpde.eq.2.or.mmpde.eq.3) then
-         iwk (1) = min0 (m * (ip + 2), neq - 1)
+         iwk (1) = min (m * (ip + 2), neq - 1)
       else
-         iwk (1) = min0 (m * (0 + 2), neq - 1)
+         iwk (1) = min (m * (0 + 2), neq - 1)
       endif
       iwk (2) = iwk (1)
       info (7) = 1
@@ -1005,9 +1009,9 @@ module movcol_mod
       iwk (3) = 1
       info (11) = 1
 !        define the initial values for ydot
-      do 40 i = 1, neq
+      do i = 1, neq
          ydot (i) = zero
-   40 end do
+      end do
 !
 !...take two time integration steps using ddassl
 !
@@ -1020,36 +1024,20 @@ module movcol_mod
       endif
       atol1 = one
       rtol1 = one
-      do 50 itout = 1, 2
-         open(unit=111, file="defivs.dat")
-         write(111,*) "phypde = ", phypde
-         write(111,*) "t = ", t
-         write(111,*) "y = ", y(1:(2*npde+1))
-         write(111,*) "ydot = ", ydot(1:(2*npde+1))
-         write(111,*) "tout = ", tout
-         write(111,*) "rtol1 = ", rtol1
-         write(111,*) "atol1 = ", atol1
-         do i = 1, 8635
-            write(111,"(i10,f30.10)") i, eqn%rwork(i)
-         end do
+      do itout = 1, 2
 
-         call eqn%ddassl (neq, t, y, ydot, tout, info, rtol1, atol1,&
+         ! open(unit=111, file="inside_resode.dat")
+         ! ! print *, npde, npts, mmpde, ip, gamma, tau, m
+         ! ! print *, zero, quart, half, one, two, three, four, six
+         ! do i = 1, eqn%npts
+         !    write(111,"(i10,(f30.10))") i, eqn%x(i)
+         ! end do
+         ! close(111)
+         ! stop
+
+         call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
          idid, rwk, lrw, iwk, liw, rwk1, iwk1)
-
-         write(111,*) "phypde = ", phypde
-         write(111,*) "t = ", t
-         write(111,*) "y = ", y(1:(2*npde+1))
-         write(111,*) "ydot = ", ydot(1:(2*npde+1))
-         write(111,*) "tout = ", tout
-         write(111,*) "rtol1 = ", rtol1
-         write(111,*) "atol1 = ", atol1
-         do i = 1, 8635
-            write(111,"(i10,f30.10)") i, eqn%rwork(i)
-         end do
-         close(111)
-         stop
-
-   50 end do
+      end do
 !
 !...now begin the actual numerical integration
 !
@@ -1063,40 +1051,27 @@ module movcol_mod
 !
 !     for solving the physical pde
       if (job.eq.1) then
-         call eqn%defmsh (rwk1 (m21 + 1) )
-         do 54 i = 1, npts
-            y (m * i) = rwk1 (m21 + i)
-   54    end do
+         call eqn%defmsh ( eqn%x )
       endif
 !
 !     the mesh generation case: starting from a uniform mesh
       if (.not.phypde) then
-         do 55 i = 1, npts
-            y (m * i) = xl + (xr - xl) * (i - 1) / (npts - 1)
-   55    end do
+         do i = 1, npts
+            eqn%x(i) = xl + (xr - xl) * (i - 1) / (npts - 1)
+         end do
       endif
 !
 !     for the physical solution
       if (phypde) then
 !        the case of solving the physical pdes
          do i = 1, npts
-            call eqn%defivs (y (m * i), rwk1 (m11 + 1), rwk1 (m12 + 1)&
-            )
-            do k = 1, npde
-               y (m * (i - 1) + 2 * (k - 1) + 1) = rwk1 (m11 + k)
-               y (m * (i - 1) + 2 * (k - 1) + 2) = rwk1 (m12 + k)
-            end do
+            call eqn%defivs (eqn%x(i), eqn%u(:,i), eqn%ux(:,i))
          end do
 
       else
 !        the mesh generation case
-         do i = 1, npts
-            do k = 1, npde
-               y (m * (i - 1) + 2 * (k - 1) + 1) = zero
-               y (m * (i - 1) + 2 * (k - 1) + 2) = zero
-            end do
-         end do
-
+         eqn%u  = zero
+         eqn%ux = zero
       endif
 !
 !...define the input parameters for subroutine resode
@@ -1115,16 +1090,16 @@ module movcol_mod
 !
 !...define the input parameters for ddassl
 !
-      do 65 i = 1, 15
+      do i = 1, 15
          info (i) = 0
-   65 end do
+      end do
       info (3) = 1
       info (6) = 1
 !        define the lower and upper bandwidths for the jacobian
       if (mmpde.eq.2.or.mmpde.eq.3) then
-         iwk (1) = min0 (m * (ip + 2), neq - 1)
+         iwk (1) = min (m * (ip + 2), neq - 1)
       else
-         iwk (1) = min0 (m * (0 + 2), neq - 1)
+         iwk (1) = min (m * (0 + 2), neq - 1)
       endif
       iwk (2) = iwk (1)
       info (7) = 1
@@ -1169,13 +1144,13 @@ module movcol_mod
       else
          itoutm = 2
       endif
-      do 130 itout = 2, itoutm
+      do itout = 2, itoutm
          if (phypde) then
             tout = touta (itout)
          else
             tout = one
          endif
-  110    call eqn%ddassl (neq, t, y, ydot, tout, info, rtol1, atol1,  &
+  110    call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,  &
          idid, rwk, lrw, iwk, liw, rwk1, iwk1)
 !
 !...print the solution at t
@@ -1227,7 +1202,7 @@ module movcol_mod
             gamma, ip, atol, rtol, stpmax, ntouta
             return
          endif
-  130 end do
+      end do
 !
 !...if job = 2, go back to solve the physical pdes
 !
@@ -1351,6 +1326,7 @@ module movcol_mod
 !
 !...define some basic parameters
 !
+
       npde = iwk (1)
       npts = iwk (2)
       mmpde = iwk (3)
@@ -1942,7 +1918,7 @@ module movcol_mod
       do 30 i = 1, npts - 1
          temp = zero
          fmntr (i) = zero
-         do 20 j = max (1, i - ip), min0 (npts - 1, i + ip)
+         do 20 j = max (1, i - ip), min (npts - 1, i + ip)
             temp1 = (gamma / (gamma + one) ) **iabs (j - i)
             temp = temp + temp1
             fmntr (i) = fmntr (i) + rw (j) * temp1
@@ -2009,7 +1985,7 @@ module movcol_mod
 !...compute u, ux, ut at time t and x = x_i
 !
          x = y (m * i)
-         i1 = min0 (i, npts - 1)
+         i1 = min (i, npts - 1)
          call drvtvs (npde, npts, i1, x, y, ydot, u, ux, uxx, ut, uxt)
 !
 !...store x_i, xdot_i, u(k), ux(k), ut(k) in xmesh(i), xmesht(i),
@@ -2035,20 +2011,4 @@ module movcol_mod
 !***********************************************************************
 !***********************************************************************
 !
-      real(8) function zermch (dum)
-!
-!...this routine computes the machine unit roundoff (zero)
-!...in double precision. it is the smallest positive machine
-!...number such that  1.d0 + zermch .ne. 1.d0
-!
-      implicit real (8)(a - h, o - z)
-!
-      zermch = one
-   10 temp = zermch * half
-      if (temp + one.ne.one) then
-         zermch = temp
-         goto 10
-      endif
-      return
-      end function zermch
 end module movcol_mod

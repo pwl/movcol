@@ -1,19 +1,14 @@
 module ddassl_mod
 
   type, abstract :: problem_ddassl
-   contains
-     procedure(res_i), deferred :: res
-     procedure(jac_i), deferred :: jac
-     procedure :: ddajac
-     procedure :: ddaini
-     procedure :: ddastp
-     procedure :: ddassl
+     contains
+       procedure(res_i), deferred :: res
+       procedure(jac_i), deferred :: jac
   end type problem_ddassl
-
 
   abstract interface
 
-     subroutine res_i (eqn, t, y, ydot, res, ires, rwk, iwk)
+     subroutine res_i(eqn, t, y, ydot, res, ires, rwk, iwk)
        import problem_ddassl
        class(problem_ddassl) :: eqn
        integer :: ires
@@ -22,10 +17,9 @@ module ddassl_mod
        real(8), dimension(*) :: y, ydot, res, rwk
      end subroutine res_i
 
-     subroutine jac_i (eqn, t, y, ydot, pd, cj, rwk, iwk)
+     subroutine jac_i(eqn, t, y, ydot, pd,  cj,   rwk, iwk)
        import problem_ddassl
        class(problem_ddassl) :: eqn
-       integer :: ires
        integer, dimension(*) :: iwk
        real(8) :: t, cj
        real(8), dimension(*) :: y, ydot, rwk
@@ -35,3096 +29,3019 @@ module ddassl_mod
   end interface
 
 contains
-!deck ddassl
+
+!DECK DDASSL
 !-----------------------------------------------------------------------
-! note:  users of this solver, ddassl, are encouraged to use the
-! solver ddaspk instead.  ddaspk has a much improved initial condition
-! calculation algorithm.  in addition, ddaspk includes iterative
-! (krylov) methods for the linear systems that arise, in addition to
-! the direct (dense/banded) methods in ddassl.
+! NOTE:  Users of this solver, DDASSL, are encouraged to use the
+! solver DDASPK instead.  DDASPK has a much improved initial condition
+! calculation algorithm.  In addition, DDASPK includes iterative
+! (Krylov) methods for the linear systems that arise, in addition to
+! the direct (dense/banded) methods in DDASSL.
 !-----------------------------------------------------------------------
-!***begin prologue  ddassl
-!***purpose  this code solves a system of differential/algebraic
-!            equations of the form g(t,y,yprime) = 0.
-!***library   slatec (dassl)
-!***category  i1a2
-!***type      double precision (sdassl-s, ddassl-d)
-!***keywords  backward differentiation formulas, dassl,
-!             differential/algebraic, implicit differential systems
-!***author  petzold, linda r., (llnl)
-!             computing and mathematics research division
-!             lawrence livermore national laboratory
-!             l - 316, p.o. box 808,
-!             livermore, ca.    94550
-!***description
+!***BEGIN PROLOGUE  DDASSL
+!***PURPOSE  This code solves a system of differential/algebraic
+!            equations of the form G(T,Y,YPRIME) = 0.
+!***LIBRARY   SLATEC (DASSL)
+!***CATEGORY  I1A2
+!***TYPE      DOUBLE PRECISION (SDASSL-S, DDASSL-D)
+!***KEYWORDS  BACKWARD DIFFERENTIATION FORMULAS, DASSL,
+!             DIFFERENTIAL/ALGEBRAIC, IMPLICIT DIFFERENTIAL SYSTEMS
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!             Computing and Mathematics Research Division
+!             Lawrence Livermore National Laboratory
+!             L - 316, P.O. Box 808,
+!             Livermore, CA.    94550
+!***DESCRIPTION
 !
-! *usage:
+! *Usage:
 !
-!      external res, jac
-!      integer neq, info(n), idid, lrw, liw, iwork(liw), ipar
-!      double precision t, y(neq), yprime(neq), tout, rtol, atol,
-!     *   rwork(lrw), rpar
+!      EXTERNAL RES, JAC
+!      INTEGER NEQ, INFO(N), IDID, LRW, LIW, IWORK(LIW), IPAR
+!      DOUBLE PRECISION T, Y(NEQ), YPRIME(NEQ), TOUT, RTOL, ATOL,
+!     *   RWORK(LRW), RPAR
 !
-!      call ddassl (res, neq, t, y, yprime, tout, info, rtol, atol,
-!     *   idid, rwork, lrw, iwork, liw, rpar, ipar, jac)
+!      CALL DDASSL (RES, NEQ, T, Y, YPRIME, TOUT, INFO, RTOL, ATOL,
+!     *   IDID, RWORK, LRW, IWORK, LIW, RPAR, IPAR, JAC)
 !
 !
-! *arguments:
-!  (in the following, all real arrays should be type double precision.)
+! *Arguments:
+!  (In the following, all real arrays should be type DOUBLE PRECISION.)
 !
-!  res:ext     this is a subroutine which you provide to define the
+!  RES:EXT     This is a subroutine which you provide to define the
 !              differential/algebraic system.
 !
-!  neq:in      this is the number of equations to be solved.
+!  NEQ:IN      This is the number of equations to be solved.
 !
-!  t:inout     this is the current value of the independent variable.
+!  T:INOUT     This is the current value of the independent variable.
 !
-!  y(*):inout  this array contains the solution components at t.
+!  Y(*):INOUT  This array contains the solution components at T.
 !
-!  yprime(*):inout  this array contains the derivatives of the solution
-!              components at t.
+!  YPRIME(*):INOUT  This array contains the derivatives of the solution
+!              components at T.
 !
-!  tout:in     this is a point at which a solution is desired.
+!  TOUT:IN     This is a point at which a solution is desired.
 !
-!  info(n):in  the basic task of the code is to solve the system from t
-!              to tout and return an answer at tout.  info is an integer
+!  INFO(N):IN  The basic task of the code is to solve the system from T
+!              to TOUT and return an answer at TOUT.  INFO is an integer
 !              array which is used to communicate exactly how you want
-!              this task to be carried out.  (see below for details.)
-!              n must be greater than or equal to 15.
+!              this task to be carried out.  (See below for details.)
+!              N must be greater than or equal to 15.
 !
-!  rtol,atol:inout  these quantities represent relative and absolute
+!  RTOL,ATOL:INOUT  These quantities represent relative and absolute
 !              error tolerances which you provide to indicate how
-!              accurately you wish the solution to be computed.  you
+!              accurately you wish the solution to be computed.  You
 !              may choose them to be both scalars or else both vectors.
-!              caution:  in fortran 77, a scalar is not the same as an
-!                        array of length 1.  some compilers may object
-!                        to using scalars for rtol,atol.
+!              Caution:  In Fortran 77, a scalar is not the same as an
+!                        array of length 1.  Some compilers may object
+!                        to using scalars for RTOL,ATOL.
 !
-!  idid:out    this scalar quantity is an indicator reporting what the
-!              code did.  you must monitor this integer variable to
+!  IDID:OUT    This scalar quantity is an indicator reporting what the
+!              code did.  You must monitor this integer variable to
 !              decide  what action to take next.
 !
-!  rwork:work  a real work array of length lrw which provides the
+!  RWORK:WORK  A real work array of length LRW which provides the
 !              code with needed storage space.
 !
-!  lrw:in      the length of rwork.  (see below for required length.)
+!  LRW:IN      The length of RWORK.  (See below for required length.)
 !
-!  iwork:work  an integer work array of length liw which provides the
+!  IWORK:WORK  An integer work array of length LIW which provides the
 !              code with needed storage space.
 !
-!  liw:in      the length of iwork.  (see below for required length.)
+!  LIW:IN      The length of IWORK.  (See below for required length.)
 !
-!  rpar,ipar:in  these are real and integer parameter arrays which
+!  RPAR,IPAR:IN  These are real and integer parameter arrays which
 !              you can use for communication between your calling
-!              program and the res subroutine (and the jac subroutine)
+!              program and the RES subroutine (and the JAC subroutine)
 !
-!  jac:ext     this is the name of a subroutine which you may choose
+!  JAC:EXT     This is the name of a subroutine which you may choose
 !              to provide for defining a matrix of partial derivatives
 !              described below.
 !
-!  quantities which may be altered by ddassl are:
-!     t, y(*), yprime(*), info(1), rtol, atol,
-!     idid, rwork(*) and iwork(*)
+!  Quantities which may be altered by DDASSL are:
+!     T, Y(*), YPRIME(*), INFO(1), RTOL, ATOL,
+!     IDID, RWORK(*) AND IWORK(*)
 !
-! *description
+! *Description
 !
-!  subroutine ddassl uses the backward differentiation formulas of
-!  orders one through five to solve a system of the above form for y and
-!  yprime.  values for y and yprime at the initial time must be given as
-!  input.  these values must be consistent, (that is, if t,y,yprime are
-!  the given initial values, they must satisfy g(t,y,yprime) = 0.).  the
-!  subroutine solves the system from t to tout.  it is easy to continue
-!  the solution to get results at additional tout.  this is the interval
-!  mode of operation.  intermediate results can also be obtained easily
+!  Subroutine DDASSL uses the backward differentiation formulas of
+!  orders one through five to solve a system of the above form for Y and
+!  YPRIME.  Values for Y and YPRIME at the initial time must be given as
+!  input.  These values must be consistent, (that is, if T,Y,YPRIME are
+!  the given initial values, they must satisfy G(T,Y,YPRIME) = 0.).  The
+!  subroutine solves the system from T to TOUT.  It is easy to continue
+!  the solution to get results at additional TOUT.  This is the interval
+!  mode of operation.  Intermediate results can also be obtained easily
 !  by using the intermediate-output capability.
 !
-!  the following detailed description is divided into subsections:
-!    1. input required for the first call to ddassl.
-!    2. output after any return from ddassl.
-!    3. what to do to continue the integration.
-!    4. error messages.
+!  The following detailed description is divided into subsections:
+!    1. Input required for the first call to DDASSL.
+!    2. Output after any return from DDASSL.
+!    3. What to do to continue the integration.
+!    4. Error messages.
 !
 !
-!  -------- input -- what to do on the first call to ddassl ------------
+!  -------- INPUT -- WHAT TO DO ON THE FIRST CALL TO DDASSL ------------
 !
-!  the first call of the code is defined to be the start of each new
-!  problem. read through the descriptions of all the following items,
+!  The first call of the code is defined to be the start of each new
+!  problem. Read through the descriptions of all the following items,
 !  provide sufficient storage space for designated arrays, set
 !  appropriate variables for the initialization of the problem, and
 !  give information about how you want the problem to be solved.
 !
 !
-!  res -- provide a subroutine of the form
-!             subroutine res(t,y,yprime,delta,ires,rpar,ipar)
+!  RES -- Provide a subroutine of the form
+!             SUBROUTINE RES(T,Y,YPRIME,DELTA,IRES,RPAR,IPAR)
 !         to define the system of differential/algebraic
-!         equations which is to be solved. for the given values
-!         of t,y and yprime, the subroutine should
+!         equations which is to be solved. For the given values
+!         of T,Y and YPRIME, the subroutine should
 !         return the residual of the differential/algebraic
 !         system
-!             delta = g(t,y,yprime)
-!         (delta(*) is a vector of length neq which is
-!         output for res.)
+!             DELTA = G(T,Y,YPRIME)
+!         (DELTA(*) is a vector of length NEQ which is
+!         output for RES.)
 !
-!         subroutine res must not alter t,y or yprime.
-!         you must declare the name res in an external
-!         statement in your program that calls ddassl.
-!         you must dimension y,yprime and delta in res.
+!         Subroutine RES must not alter T,Y or YPRIME.
+!         You must declare the name RES in an external
+!         statement in your program that calls DDASSL.
+!         You must dimension Y,YPRIME and DELTA in RES.
 !
-!         ires is an integer flag which is always equal to
-!         zero on input. subroutine res should alter ires
-!         only if it encounters an illegal value of y or
-!         a stop condition. set ires = -1 if an input value
-!         is illegal, and ddassl will try to solve the problem
-!         without getting ires = -1. if ires = -2, ddassl
+!         IRES is an integer flag which is always equal to
+!         zero on input. Subroutine RES should alter IRES
+!         only if it encounters an illegal value of Y or
+!         a stop condition. Set IRES = -1 if an input value
+!         is illegal, and DDASSL will try to solve the problem
+!         without getting IRES = -1. If IRES = -2, DDASSL
 !         will return control to the calling program
-!         with idid = -11.
+!         with IDID = -11.
 !
-!         rpar and ipar are real and integer parameter arrays which
+!         RPAR and IPAR are real and integer parameter arrays which
 !         you can use for communication between your calling program
-!         and subroutine res. they are not altered by ddassl. if you
-!         do not need rpar or ipar, ignore these parameters by treat-
-!         ing them as dummy arguments. if you do choose to use them,
-!         dimension them in your calling program and in res as arrays
+!         and subroutine RES. They are not altered by DDASSL. If you
+!         do not need RPAR or IPAR, ignore these parameters by treat-
+!         ing them as dummy arguments. If you do choose to use them,
+!         dimension them in your calling program and in RES as arrays
 !         of appropriate length.
 !
-!  neq -- set it to the number of differential equations.
-!         (neq .ge. 1)
+!  NEQ -- Set it to the number of differential equations.
+!         (NEQ .GE. 1)
 !
-!  t -- set it to the initial point of the integration.
-!         t must be defined as a variable.
+!  T -- Set it to the initial point of the integration.
+!         T must be defined as a variable.
 !
-!  y(*) -- set this vector to the initial values of the neq solution
-!         components at the initial point. you must dimension y of
-!         length at least neq in your calling program.
+!  Y(*) -- Set this vector to the initial values of the NEQ solution
+!         components at the initial point. You must dimension Y of
+!         length at least NEQ in your calling program.
 !
-!  yprime(*) -- set this vector to the initial values of the neq
+!  YPRIME(*) -- Set this vector to the initial values of the NEQ
 !         first derivatives of the solution components at the initial
-!         point.  you must dimension yprime at least neq in your
-!         calling program. if you do not know initial values of some
-!         of the solution components, see the explanation of info(11).
+!         point.  You must dimension YPRIME at least NEQ in your
+!         calling program. If you do not know initial values of some
+!         of the solution components, see the explanation of INFO(11).
 !
-!  tout -- set it to the first point at which a solution
-!         is desired. you can not take tout = t.
-!         integration either forward in t (tout .gt. t) or
-!         backward in t (tout .lt. t) is permitted.
+!  TOUT -- Set it to the first point at which a solution
+!         is desired. You can not take TOUT = T.
+!         integration either forward in T (TOUT .GT. T) or
+!         backward in T (TOUT .LT. T) is permitted.
 !
-!         the code advances the solution from t to tout using
+!         The code advances the solution from T to TOUT using
 !         step sizes which are automatically selected so as to
-!         achieve the desired accuracy. if you wish, the code will
+!         achieve the desired accuracy. If you wish, the code will
 !         return with the solution and its derivative at
 !         intermediate steps (intermediate-output mode) so that
-!         you can monitor them, but you still must provide tout in
+!         you can monitor them, but you still must provide TOUT in
 !         accord with the basic aim of the code.
 !
-!         the first step taken by the code is a critical one
+!         The first step taken by the code is a critical one
 !         because it must reflect how fast the solution changes near
-!         the initial point. the code automatically selects an
+!         the initial point. The code automatically selects an
 !         initial step size which is practically always suitable for
-!         the problem. by using the fact that the code will not step
-!         past tout in the first step, you could, if necessary,
+!         the problem. By using the fact that the code will not step
+!         past TOUT in the first step, you could, if necessary,
 !         restrict the length of the initial step size.
 !
-!         for some problems it may not be permissible to integrate
-!         past a point tstop because a discontinuity occurs there
+!         For some problems it may not be permissible to integrate
+!         past a point TSTOP because a discontinuity occurs there
 !         or the solution or its derivative is not defined beyond
-!         tstop. when you have declared a tstop point (see info(4)
-!         and rwork(1)), you have told the code not to integrate
-!         past tstop. in this case any tout beyond tstop is invalid
+!         TSTOP. When you have declared a TSTOP point (SEE INFO(4)
+!         and RWORK(1)), you have told the code not to integrate
+!         past TSTOP. In this case any TOUT beyond TSTOP is invalid
 !         input.
 !
-!  info(*) -- use the info array to give the code more details about
-!         how you want your problem solved.  this array should be
-!         dimensioned of length 15, though ddassl uses only the first
-!         eleven entries.  you must respond to all of the following
-!         items, which are arranged as questions.  the simplest use
+!  INFO(*) -- Use the INFO array to give the code more details about
+!         how you want your problem solved.  This array should be
+!         dimensioned of length 15, though DDASSL uses only the first
+!         eleven entries.  You must respond to all of the following
+!         items, which are arranged as questions.  The simplest use
 !         of the code corresponds to answering all questions as yes,
-!         i.e. setting all entries of info to 0.
+!         i.e. setting all entries of INFO to 0.
 !
-!       info(1) - this parameter enables the code to initialize
-!              itself. you must set it to indicate the start of every
+!       INFO(1) - This parameter enables the code to initialize
+!              itself. You must set it to indicate the start of every
 !              new problem.
 !
-!          **** is this the first call for this problem ...
-!                yes - set info(1) = 0
-!                 no - not applicable here.
-!                      see below for continuation calls.  ****
+!          **** Is this the first call for this problem ...
+!                Yes - Set INFO(1) = 0
+!                 No - Not applicable here.
+!                      See below for continuation calls.  ****
 !
-!       info(2) - how much accuracy you want of your solution
-!              is specified by the error tolerances rtol and atol.
-!              the simplest use is to take them both to be scalars.
-!              to obtain more flexibility, they can both be vectors.
-!              the code must be told your choice.
+!       INFO(2) - How much accuracy you want of your solution
+!              is specified by the error tolerances RTOL and ATOL.
+!              The simplest use is to take them both to be scalars.
+!              To obtain more flexibility, they can both be vectors.
+!              The code must be told your choice.
 !
-!          **** are both error tolerances rtol, atol scalars ...
-!                yes - set info(2) = 0
-!                      and input scalars for both rtol and atol
-!                 no - set info(2) = 1
-!                      and input arrays for both rtol and atol ****
+!          **** Are both error tolerances RTOL, ATOL scalars ...
+!                Yes - Set INFO(2) = 0
+!                      and input scalars for both RTOL and ATOL
+!                 No - Set INFO(2) = 1
+!                      and input arrays for both RTOL and ATOL ****
 !
-!       info(3) - the code integrates from t in the direction
-!              of tout by steps. if you wish, it will return the
+!       INFO(3) - The code integrates from T in the direction
+!              of TOUT by steps. If you wish, it will return the
 !              computed solution and derivative at the next
 !              intermediate step (the intermediate-output mode) or
-!              tout, whichever comes first. this is a good way to
+!              TOUT, whichever comes first. This is a good way to
 !              proceed if you want to see the behavior of the solution.
-!              if you must have solutions at a great many specific
-!              tout points, this code will compute them efficiently.
+!              If you must have solutions at a great many specific
+!              TOUT points, this code will compute them efficiently.
 !
-!          **** do you want the solution only at
-!                tout (and not at the next intermediate step) ...
-!                 yes - set info(3) = 0
-!                  no - set info(3) = 1 ****
+!          **** Do you want the solution only at
+!                TOUT (and not at the next intermediate step) ...
+!                 Yes - Set INFO(3) = 0
+!                  No - Set INFO(3) = 1 ****
 !
-!       info(4) - to handle solutions at a great many specific
-!              values tout efficiently, this code may integrate past
-!              tout and interpolate to obtain the result at tout.
-!              sometimes it is not possible to integrate beyond some
-!              point tstop because the equation changes there or it is
-!              not defined past tstop. then you must tell the code
+!       INFO(4) - To handle solutions at a great many specific
+!              values TOUT efficiently, this code may integrate past
+!              TOUT and interpolate to obtain the result at TOUT.
+!              Sometimes it is not possible to integrate beyond some
+!              point TSTOP because the equation changes there or it is
+!              not defined past TSTOP. Then you must tell the code
 !              not to go past.
 !
-!           **** can the integration be carried out without any
-!                restrictions on the independent variable t ...
-!                 yes - set info(4)=0
-!                  no - set info(4)=1
-!                       and define the stopping point tstop by
-!                       setting rwork(1)=tstop ****
+!           **** Can the integration be carried out without any
+!                restrictions on the independent variable T ...
+!                 Yes - Set INFO(4)=0
+!                  No - Set INFO(4)=1
+!                       and define the stopping point TSTOP by
+!                       setting RWORK(1)=TSTOP ****
 !
-!       info(5) - to solve differential/algebraic problems it is
+!       INFO(5) - To solve differential/algebraic problems it is
 !              necessary to use a matrix of partial derivatives of the
-!              system of differential equations. if you do not
+!              system of differential equations. If you do not
 !              provide a subroutine to evaluate it analytically (see
-!              description of the item jac in the call list), it will
+!              description of the item JAC in the call list), it will
 !              be approximated by numerical differencing in this code.
 !              although it is less trouble for you to have the code
 !              compute partial derivatives by numerical differencing,
 !              the solution will be more reliable if you provide the
-!              derivatives via jac. sometimes numerical differencing
-!              is cheaper than evaluating derivatives in jac and
+!              derivatives via JAC. Sometimes numerical differencing
+!              is cheaper than evaluating derivatives in JAC and
 !              sometimes it is not - this depends on your problem.
 !
-!           **** do you want the code to evaluate the partial
+!           **** Do you want the code to evaluate the partial
 !                derivatives automatically by numerical differences ...
-!                   yes - set info(5)=0
-!                    no - set info(5)=1
-!                  and provide subroutine jac for evaluating the
+!                   Yes - Set INFO(5)=0
+!                    No - Set INFO(5)=1
+!                  and provide subroutine JAC for evaluating the
 !                  matrix of partial derivatives ****
 !
-!       info(6) - ddassl will perform much better if the matrix of
-!              partial derivatives, dg/dy + cj*dg/dyprime,
-!              (here cj is a scalar determined by ddassl)
-!              is banded and the code is told this. in this
+!       INFO(6) - DDASSL will perform much better if the matrix of
+!              partial derivatives, DG/DY + CJ*DG/DYPRIME,
+!              (here CJ is a scalar determined by DDASSL)
+!              is banded and the code is told this. In this
 !              case, the storage needed will be greatly reduced,
 !              numerical differencing will be performed much cheaper,
 !              and a number of important algorithms will execute much
-!              faster. the differential equation is said to have
-!              half-bandwidths ml (lower) and mu (upper) if equation i
-!              involves only unknowns y(j) with
-!                             i-ml .le. j .le. i+mu
-!              for all i=1,2,...,neq. thus, ml and mu are the widths
+!              faster. The differential equation is said to have
+!              half-bandwidths ML (lower) and MU (upper) if equation i
+!              involves only unknowns Y(J) with
+!                             I-ML .LE. J .LE. I+MU
+!              for all I=1,2,...,NEQ. Thus, ML and MU are the widths
 !              of the lower and upper parts of the band, respectively,
-!              with the main diagonal being excluded. if you do not
+!              with the main diagonal being excluded. If you do not
 !              indicate that the equation has a banded matrix of partial
-!              derivatives, the code works with a full matrix of neq**2
-!              elements (stored in the conventional way). computations
+!              derivatives, the code works with a full matrix of NEQ**2
+!              elements (stored in the conventional way). Computations
 !              with banded matrices cost less time and storage than with
-!              full matrices if 2*ml+mu .lt. neq. if you tell the
+!              full matrices if 2*ML+MU .LT. NEQ. If you tell the
 !              code that the matrix of partial derivatives has a banded
-!              structure and you want to provide subroutine jac to
+!              structure and you want to provide subroutine JAC to
 !              compute the partial derivatives, then you must be careful
 !              to store the elements of the matrix in the special form
-!              indicated in the description of jac.
+!              indicated in the description of JAC.
 !
-!          **** do you want to solve the problem using a full
+!          **** Do you want to solve the problem using a full
 !               (dense) matrix (and not a special banded
 !               structure) ...
-!                yes - set info(6)=0
-!                 no - set info(6)=1
-!                       and provide the lower (ml) and upper (mu)
+!                Yes - Set INFO(6)=0
+!                 No - Set INFO(6)=1
+!                       and provide the lower (ML) and upper (MU)
 !                       bandwidths by setting
-!                       iwork(1)=ml
-!                       iwork(2)=mu ****
+!                       IWORK(1)=ML
+!                       IWORK(2)=MU ****
 !
 !
-!        info(7) -- you can specify a maximum (absolute value of)
+!        INFO(7) -- You can specify a maximum (absolute value of)
 !              stepsize, so that the code
 !              will avoid passing over very
 !              large regions.
 !
-!          ****  do you want the code to decide
+!          ****  Do you want the code to decide
 !                on its own maximum stepsize?
-!                yes - set info(7)=0
-!                 no - set info(7)=1
-!                      and define hmax by setting
-!                      rwork(2)=hmax ****
+!                Yes - Set INFO(7)=0
+!                 No - Set INFO(7)=1
+!                      and define HMAX by setting
+!                      RWORK(2)=HMAX ****
 !
-!        info(8) -- differential/algebraic problems
+!        INFO(8) -- Differential/algebraic problems
 !              may occasionally suffer from
 !              severe scaling difficulties on the
-!              first step. if you know a great deal
+!              first step. If you know a great deal
 !              about the scaling of your problem, you can
 !              help to alleviate this problem by
-!              specifying an initial stepsize ho.
+!              specifying an initial stepsize HO.
 !
-!          ****  do you want the code to define
+!          ****  Do you want the code to define
 !                its own initial stepsize?
-!                yes - set info(8)=0
-!                 no - set info(8)=1
-!                      and define ho by setting
-!                      rwork(3)=ho ****
+!                Yes - Set INFO(8)=0
+!                 No - Set INFO(8)=1
+!                      and define HO by setting
+!                      RWORK(3)=HO ****
 !
-!        info(9) -- if storage is a severe problem,
+!        INFO(9) -- If storage is a severe problem,
 !              you can save some locations by
-!              restricting the maximum order maxord.
+!              restricting the maximum order MAXORD.
 !              the default value is 5. for each
 !              order decrease below 5, the code
-!              requires neq fewer locations, however
-!              it is likely to be slower. in any
-!              case, you must have 1 .le. maxord .le. 5
-!          ****  do you want the maximum order to
+!              requires NEQ fewer locations, however
+!              it is likely to be slower. In any
+!              case, you must have 1 .LE. MAXORD .LE. 5
+!          ****  Do you want the maximum order to
 !                default to 5?
-!                yes - set info(9)=0
-!                 no - set info(9)=1
-!                      and define maxord by setting
-!                      iwork(3)=maxord ****
+!                Yes - Set INFO(9)=0
+!                 No - Set INFO(9)=1
+!                      and define MAXORD by setting
+!                      IWORK(3)=MAXORD ****
 !
-!        info(10) --if you know that the solutions to your equations
+!        INFO(10) --If you know that the solutions to your equations
 !               will always be nonnegative, it may help to set this
-!               parameter. however, it is probably best to
+!               parameter. However, it is probably best to
 !               try the code without using this option first,
 !               and only to use this option if that doesn't
 !               work very well.
-!           ****  do you want the code to solve the problem without
+!           ****  Do you want the code to solve the problem without
 !                 invoking any special nonnegativity constraints?
-!                  yes - set info(10)=0
-!                   no - set info(10)=1
+!                  Yes - Set INFO(10)=0
+!                   No - Set INFO(10)=1
 !
-!        info(11) --ddassl normally requires the initial t,
-!               y, and yprime to be consistent. that is,
-!               you must have g(t,y,yprime) = 0 at the initial
-!               time. if you do not know the initial
-!               derivative precisely, you can let ddassl try
+!        INFO(11) --DDASSL normally requires the initial T,
+!               Y, and YPRIME to be consistent. That is,
+!               you must have G(T,Y,YPRIME) = 0 at the initial
+!               time. If you do not know the initial
+!               derivative precisely, you can let DDASSL try
 !               to compute it.
-!          ****   are the initial t, y, yprime consistent?
-!                 yes - set info(11) = 0
-!                  no - set info(11) = 1,
-!                       and set yprime to an initial approximation
-!                       to yprime.  (if you have no idea what
-!                       yprime should be, set it to zero. note
-!                       that the initial y should be such
-!                       that there must exist a yprime so that
-!                       g(t,y,yprime) = 0.)
+!          ****   Are the initial T, Y, YPRIME consistent?
+!                 Yes - Set INFO(11) = 0
+!                  No - Set INFO(11) = 1,
+!                       and set YPRIME to an initial approximation
+!                       to YPRIME.  (If you have no idea what
+!                       YPRIME should be, set it to zero. Note
+!                       that the initial Y should be such
+!                       that there must exist a YPRIME so that
+!                       G(T,Y,YPRIME) = 0.)
 !
-!  rtol, atol -- you must assign relative (rtol) and absolute (atol
+!  RTOL, ATOL -- You must assign relative (RTOL) and absolute (ATOL
 !         error tolerances to tell the code how accurately you
-!         want the solution to be computed.  they must be defined
-!         as variables because the code may change them.  you
+!         want the solution to be computed.  They must be defined
+!         as variables because the code may change them.  You
 !         have two choices --
-!               both rtol and atol are scalars. (info(2)=0)
-!               both rtol and atol are vectors. (info(2)=1)
+!               Both RTOL and ATOL are scalars. (INFO(2)=0)
+!               Both RTOL and ATOL are vectors. (INFO(2)=1)
 !         in either case all components must be non-negative.
 !
-!         the tolerances are used by the code in a local error
+!         The tolerances are used by the code in a local error
 !         test at each step which requires roughly that
-!               abs(local error) .le. rtol*abs(y)+atol
+!               ABS(LOCAL ERROR) .LE. RTOL*ABS(Y)+ATOL
 !         for each vector component.
-!         (more specifically, a root-mean-square norm is used to
+!         (More specifically, a root-mean-square norm is used to
 !         measure the size of vectors, and the error test uses the
 !         magnitude of the solution at the beginning of the step.)
 !
-!         the true (global) error is the difference between the
+!         The true (global) error is the difference between the
 !         true solution of the initial value problem and the
-!         computed approximation.  practically all present day
+!         computed approximation.  Practically all present day
 !         codes, including this one, control the local error at
 !         each step and do not even attempt to control the global
 !         error directly.
-!         usually, but not always, the true accuracy of the
-!         computed y is comparable to the error tolerances. this
+!         Usually, but not always, the true accuracy of the
+!         computed Y is comparable to the error tolerances. This
 !         code will usually, but not always, deliver a more
 !         accurate solution if you reduce the tolerances and
-!         integrate again.  by comparing two such solutions you
+!         integrate again.  By comparing two such solutions you
 !         can get a fairly reliable idea of the true error in the
 !         solution at the bigger tolerances.
 !
-!         setting atol=0. results in a pure relative error test on
-!         that component.  setting rtol=0. results in a pure
-!         absolute error test on that component.  a mixed test
-!         with non-zero rtol and atol corresponds roughly to a
+!         Setting ATOL=0. results in a pure relative error test on
+!         that component.  Setting RTOL=0. results in a pure
+!         absolute error test on that component.  A mixed test
+!         with non-zero RTOL and ATOL corresponds roughly to a
 !         relative error test when the solution component is much
-!         bigger than atol and to an absolute error test when the
-!         solution component is smaller than the threshhold atol.
+!         bigger than ATOL and to an absolute error test when the
+!         solution component is smaller than the threshhold ATOL.
 !
-!         the code will not attempt to compute a solution at an
-!         accuracy unreasonable for the machine being used.  it will
+!         The code will not attempt to compute a solution at an
+!         accuracy unreasonable for the machine being used.  It will
 !         advise you if you ask for too much accuracy and inform
 !         you as to the maximum accuracy it believes possible.
 !
-!  rwork(*) --  dimension this real work array of length lrw in your
+!  RWORK(*) --  Dimension this real work array of length LRW in your
 !         calling program.
 !
-!  lrw -- set it to the declared length of the rwork array.
-!               you must have
-!                    lrw .ge. 40+(maxord+4)*neq+neq**2
-!               for the full (dense) jacobian case (when info(6)=0), or
-!                    lrw .ge. 40+(maxord+4)*neq+(2*ml+mu+1)*neq
-!               for the banded user-defined jacobian case
-!               (when info(5)=1 and info(6)=1), or
-!                     lrw .ge. 40+(maxord+4)*neq+(2*ml+mu+1)*neq
-!                           +2*(neq/(ml+mu+1)+1)
-!               for the banded finite-difference-generated jacobian case
-!               (when info(5)=0 and info(6)=1)
+!  LRW -- Set it to the declared length of the RWORK array.
+!               You must have
+!                    LRW .GE. 40+(MAXORD+4)*NEQ+NEQ**2
+!               for the full (dense) JACOBIAN case (when INFO(6)=0), or
+!                    LRW .GE. 40+(MAXORD+4)*NEQ+(2*ML+MU+1)*NEQ
+!               for the banded user-defined JACOBIAN case
+!               (when INFO(5)=1 and INFO(6)=1), or
+!                     LRW .GE. 40+(MAXORD+4)*NEQ+(2*ML+MU+1)*NEQ
+!                           +2*(NEQ/(ML+MU+1)+1)
+!               for the banded finite-difference-generated JACOBIAN case
+!               (when INFO(5)=0 and INFO(6)=1)
 !
-!  iwork(*) --  dimension this integer work array of length liw in
+!  IWORK(*) --  Dimension this integer work array of length LIW in
 !         your calling program.
 !
-!  liw -- set it to the declared length of the iwork array.
-!               you must have liw .ge. 20+neq
+!  LIW -- Set it to the declared length of the IWORK array.
+!               You must have LIW .GE. 20+NEQ
 !
-!  rpar, ipar -- these are parameter arrays, of real and integer
-!         type, respectively.  you can use them for communication
-!         between your program that calls ddassl and the
-!         res subroutine (and the jac subroutine).  they are not
-!         altered by ddassl.  if you do not need rpar or ipar,
+!  RPAR, IPAR -- These are parameter arrays, of real and integer
+!         type, respectively.  You can use them for communication
+!         between your program that calls DDASSL and the
+!         RES subroutine (and the JAC subroutine).  They are not
+!         altered by DDASSL.  If you do not need RPAR or IPAR,
 !         ignore these parameters by treating them as dummy
-!         arguments.  if you do choose to use them, dimension
-!         them in your calling program and in res (and in jac)
+!         arguments.  If you do choose to use them, dimension
+!         them in your calling program and in RES (and in JAC)
 !         as arrays of appropriate length.
 !
-!  jac -- if you have set info(5)=0, you can ignore this parameter
-!         by treating it as a dummy argument.  otherwise, you must
+!  JAC -- If you have set INFO(5)=0, you can ignore this parameter
+!         by treating it as a dummy argument.  Otherwise, you must
 !         provide a subroutine of the form
-!             subroutine jac(t,y,yprime,pd,cj,rpar,ipar)
+!             SUBROUTINE JAC(T,Y,YPRIME,PD,CJ,RPAR,IPAR)
 !         to define the matrix of partial derivatives
-!             pd=dg/dy+cj*dg/dyprime
-!         cj is a scalar which is input to jac.
-!         for the given values of t,y,yprime, the
+!             PD=DG/DY+CJ*DG/DYPRIME
+!         CJ is a scalar which is input to JAC.
+!         For the given values of T,Y,YPRIME, the
 !         subroutine must evaluate the non-zero partial
 !         derivatives for each equation and each solution
 !         component, and store these values in the
-!         matrix pd.  the elements of pd are set to zero
-!         before each call to jac so only non-zero elements
+!         matrix PD.  The elements of PD are set to zero
+!         before each call to JAC so only non-zero elements
 !         need to be defined.
 !
-!         subroutine jac must not alter t,y,(*),yprime(*), or cj.
-!         you must declare the name jac in an external statement in
-!         your program that calls ddassl.  you must dimension y,
-!         yprime and pd in jac.
+!         Subroutine JAC must not alter T,Y,(*),YPRIME(*), or CJ.
+!         You must declare the name JAC in an EXTERNAL statement in
+!         your program that calls DDASSL.  You must dimension Y,
+!         YPRIME and PD in JAC.
 !
-!         the way you must store the elements into the pd matrix
+!         The way you must store the elements into the PD matrix
 !         depends on the structure of the matrix which you
-!         indicated by info(6).
-!               *** info(6)=0 -- full (dense) matrix ***
-!                   give pd a first dimension of neq.
+!         indicated by INFO(6).
+!               *** INFO(6)=0 -- Full (dense) matrix ***
+!                   Give PD a first dimension of NEQ.
+!                   When you evaluate the (non-zero) partial derivative
+!                   of equation I with respect to variable J, you must
+!                   store it in PD according to
+!                   PD(I,J) = "DG(I)/DY(J)+CJ*DG(I)/DYPRIME(J)"
+!               *** INFO(6)=1 -- Banded JACOBIAN with ML lower and MU
+!                   upper diagonal bands (refer to INFO(6) description
+!                   of ML and MU) ***
+!                   Give PD a first dimension of 2*ML+MU+1.
 !                   when you evaluate the (non-zero) partial derivative
-!                   of equation i with respect to variable j, you must
-!                   store it in pd according to
-!                   pd(i,j) = "dg(i)/dy(j)+cj*dg(i)/dyprime(j)"
-!               *** info(6)=1 -- banded jacobian with ml lower and mu
-!                   upper diagonal bands (refer to info(6) description
-!                   of ml and mu) ***
-!                   give pd a first dimension of 2*ml+mu+1.
-!                   when you evaluate the (non-zero) partial derivative
-!                   of equation i with respect to variable j, you must
-!                   store it in pd according to
-!                   irow = i - j + ml + mu + 1
-!                   pd(irow,j) = "dg(i)/dy(j)+cj*dg(i)/dyprime(j)"
+!                   of equation I with respect to variable J, you must
+!                   store it in PD according to
+!                   IROW = I - J + ML + MU + 1
+!                   PD(IROW,J) = "DG(I)/DY(J)+CJ*DG(I)/DYPRIME(J)"
 !
-!         rpar and ipar are real and integer parameter arrays
+!         RPAR and IPAR are real and integer parameter arrays
 !         which you can use for communication between your calling
-!         program and your jacobian subroutine jac. they are not
-!         altered by ddassl. if you do not need rpar or ipar,
+!         program and your JACOBIAN subroutine JAC. They are not
+!         altered by DDASSL. If you do not need RPAR or IPAR,
 !         ignore these parameters by treating them as dummy
-!         arguments. if you do choose to use them, dimension
-!         them in your calling program and in jac as arrays of
+!         arguments. If you do choose to use them, dimension
+!         them in your calling program and in JAC as arrays of
 !         appropriate length.
 !
 !
-!  optionally replaceable norm routine:
+!  OPTIONALLY REPLACEABLE NORM ROUTINE:
 !
-!     ddassl uses a weighted norm ddanrm to measure the size
+!     DDASSL uses a weighted norm DDANRM to measure the size
 !     of vectors such as the estimated error in each step.
-!     a function subprogram
-!       double precision function ddanrm(neq,v,wt,rpar,ipar)
-!       dimension v(neq),wt(neq)
-!     is used to define this norm. here, v is the vector
-!     whose norm is to be computed, and wt is a vector of
-!     weights.  a ddanrm routine has been included with ddassl
+!     A FUNCTION subprogram
+!       DOUBLE PRECISION FUNCTION DDANRM(NEQ,V,WT,RPAR,IPAR)
+!       DIMENSION V(NEQ),WT(NEQ)
+!     is used to define this norm. Here, V is the vector
+!     whose norm is to be computed, and WT is a vector of
+!     weights.  A DDANRM routine has been included with DDASSL
 !     which computes the weighted root-mean-square norm
 !     given by
-!       ddanrm=sqrt((1/neq)*sum(v(i)/wt(i))**2)
-!     this norm is suitable for most problems. in some
+!       DDANRM=SQRT((1/NEQ)*SUM(V(I)/WT(I))**2)
+!     this norm is suitable for most problems. In some
 !     special cases, it may be more convenient and/or
 !     efficient to define your own norm by writing a function
-!     subprogram to be called instead of ddanrm. this should,
+!     subprogram to be called instead of DDANRM. This should,
 !     however, be attempted only after careful thought and
 !     consideration.
 !
 !
-!  -------- output -- after any return from ddassl ---------------------
+!  -------- OUTPUT -- AFTER ANY RETURN FROM DDASSL ---------------------
 !
-!  the principal aim of the code is to return a computed solution at
-!  tout, although it is also possible to obtain intermediate results
-!  along the way. to find out whether the code achieved its goal
+!  The principal aim of the code is to return a computed solution at
+!  TOUT, although it is also possible to obtain intermediate results
+!  along the way. To find out whether the code achieved its goal
 !  or if the integration process was interrupted before the task was
-!  completed, you must check the idid parameter.
+!  completed, you must check the IDID parameter.
 !
 !
-!  t -- the solution was successfully advanced to the
-!               output value of t.
+!  T -- The solution was successfully advanced to the
+!               output value of T.
 !
-!  y(*) -- contains the computed solution approximation at t.
+!  Y(*) -- Contains the computed solution approximation at T.
 !
-!  yprime(*) -- contains the computed derivative
-!               approximation at t.
+!  YPRIME(*) -- Contains the computed derivative
+!               approximation at T.
 !
-!  idid -- reports what the code did.
+!  IDID -- Reports what the code did.
 !
-!                     *** task completed ***
-!                reported by positive values of idid
+!                     *** Task completed ***
+!                Reported by positive values of IDID
 !
-!           idid = 1 -- a step was successfully taken in the
-!                   intermediate-output mode. the code has not
-!                   yet reached tout.
+!           IDID = 1 -- A step was successfully taken in the
+!                   intermediate-output mode. The code has not
+!                   yet reached TOUT.
 !
-!           idid = 2 -- the integration to tstop was successfully
-!                   completed (t=tstop) by stepping exactly to tstop.
+!           IDID = 2 -- The integration to TSTOP was successfully
+!                   completed (T=TSTOP) by stepping exactly to TSTOP.
 !
-!           idid = 3 -- the integration to tout was successfully
-!                   completed (t=tout) by stepping past tout.
-!                   y(*) is obtained by interpolation.
-!                   yprime(*) is obtained by interpolation.
+!           IDID = 3 -- The integration to TOUT was successfully
+!                   completed (T=TOUT) by stepping past TOUT.
+!                   Y(*) is obtained by interpolation.
+!                   YPRIME(*) is obtained by interpolation.
 !
-!                    *** task interrupted ***
-!                reported by negative values of idid
+!                    *** Task interrupted ***
+!                Reported by negative values of IDID
 !
-!           idid = -1 -- a large amount of work has been expended.
-!                   (about 500 steps)
+!           IDID = -1 -- A large amount of work has been expended.
+!                   (About 500 steps)
 !
-!           idid = -2 -- the error tolerances are too stringent.
+!           IDID = -2 -- The error tolerances are too stringent.
 !
-!           idid = -3 -- the local error test cannot be satisfied
-!                   because you specified a zero component in atol
+!           IDID = -3 -- The local error test cannot be satisfied
+!                   because you specified a zero component in ATOL
 !                   and the corresponding computed solution
-!                   component is zero. thus, a pure relative error
+!                   component is zero. Thus, a pure relative error
 !                   test is impossible for this component.
 !
-!           idid = -6 -- ddassl had repeated error test
+!           IDID = -6 -- DDASSL had repeated error test
 !                   failures on the last attempted step.
 !
-!           idid = -7 -- the corrector could not converge.
+!           IDID = -7 -- The corrector could not converge.
 !
-!           idid = -8 -- the matrix of partial derivatives
+!           IDID = -8 -- The matrix of partial derivatives
 !                   is singular.
 !
-!           idid = -9 -- the corrector could not converge.
+!           IDID = -9 -- The corrector could not converge.
 !                   there were repeated error test failures
 !                   in this step.
 !
-!           idid =-10 -- the corrector could not converge
-!                   because ires was equal to minus one.
+!           IDID =-10 -- The corrector could not converge
+!                   because IRES was equal to minus one.
 !
-!           idid =-11 -- ires equal to -2 was encountered
+!           IDID =-11 -- IRES equal to -2 was encountered
 !                   and control is being returned to the
 !                   calling program.
 !
-!           idid =-12 -- ddassl failed to compute the initial
-!                   yprime.
+!           IDID =-12 -- DDASSL failed to compute the initial
+!                   YPRIME.
 !
 !
 !
-!           idid = -13,..,-32 -- not applicable for this code
+!           IDID = -13,..,-32 -- Not applicable for this code
 !
-!                    *** task terminated ***
-!                reported by the value of idid=-33
+!                    *** Task terminated ***
+!                Reported by the value of IDID=-33
 !
-!           idid = -33 -- the code has encountered trouble from which
-!                   it cannot recover. a message is printed
+!           IDID = -33 -- The code has encountered trouble from which
+!                   it cannot recover. A message is printed
 !                   explaining the trouble and control is returned
-!                   to the calling program. for example, this occurs
+!                   to the calling program. For example, this occurs
 !                   when invalid input is detected.
 !
-!  rtol, atol -- these quantities remain unchanged except when
-!               idid = -2. in this case, the error tolerances have been
+!  RTOL, ATOL -- These quantities remain unchanged except when
+!               IDID = -2. In this case, the error tolerances have been
 !               increased by the code to values which are estimated to
-!               be appropriate for continuing the integration. however,
-!               the reported solution at t was obtained using the input
-!               values of rtol and atol.
+!               be appropriate for continuing the integration. However,
+!               the reported solution at T was obtained using the input
+!               values of RTOL and ATOL.
 !
-!  rwork, iwork -- contain information which is usually of no
+!  RWORK, IWORK -- Contain information which is usually of no
 !               interest to the user but necessary for subsequent calls.
-!               however, you may find use for
+!               However, you may find use for
 !
-!               rwork(3)--which contains the step size h to be
+!               RWORK(3)--Which contains the step size H to be
 !                       attempted on the next step.
 !
-!               rwork(4)--which contains the current value of the
+!               RWORK(4)--Which contains the current value of the
 !                       independent variable, i.e., the farthest point
-!                       integration has reached. this will be different
-!                       from t only when interpolation has been
-!                       performed (idid=3).
+!                       integration has reached. This will be different
+!                       from T only when interpolation has been
+!                       performed (IDID=3).
 !
-!               rwork(7)--which contains the stepsize used
+!               RWORK(7)--Which contains the stepsize used
 !                       on the last successful step.
 !
-!               iwork(7)--which contains the order of the method to
+!               IWORK(7)--Which contains the order of the method to
 !                       be attempted on the next step.
 !
-!               iwork(8)--which contains the order of the method used
+!               IWORK(8)--Which contains the order of the method used
 !                       on the last step.
 !
-!               iwork(11)--which contains the number of steps taken so
+!               IWORK(11)--Which contains the number of steps taken so
 !                        far.
 !
-!               iwork(12)--which contains the number of calls to res
+!               IWORK(12)--Which contains the number of calls to RES
 !                        so far.
 !
-!               iwork(13)--which contains the number of evaluations of
+!               IWORK(13)--Which contains the number of evaluations of
 !                        the matrix of partial derivatives needed so
 !                        far.
 !
-!               iwork(14)--which contains the total number
+!               IWORK(14)--Which contains the total number
 !                        of error test failures so far.
 !
-!               iwork(15)--which contains the total number
+!               IWORK(15)--Which contains the total number
 !                        of convergence test failures so far.
 !                        (includes singular iteration matrix
 !                        failures.)
 !
 !
-!  -------- input -- what to do to continue the integration ------------
-!                    (calls after the first)
+!  -------- INPUT -- WHAT TO DO TO CONTINUE THE INTEGRATION ------------
+!                    (CALLS AFTER THE FIRST)
 !
-!  this code is organized so that subsequent calls to continue the
+!  This code is organized so that subsequent calls to continue the
 !  integration involve little (if any) additional effort on your
-!  part. you must monitor the idid parameter in order to determine
+!  part. You must monitor the IDID parameter in order to determine
 !  what to do next.
 !
-!  recalling that the principal task of the code is to integrate
-!  from t to tout (the interval mode), usually all you will need
-!  to do is specify a new tout upon reaching the current tout.
+!  Recalling that the principal task of the code is to integrate
+!  from T to TOUT (the interval mode), usually all you will need
+!  to do is specify a new TOUT upon reaching the current TOUT.
 !
-!  do not alter any quantity not specifically permitted below,
-!  in particular do not alter neq,t,y(*),yprime(*),rwork(*),iwork(*)
-!  or the differential equation in subroutine res. any such
+!  Do not alter any quantity not specifically permitted below,
+!  in particular do not alter NEQ,T,Y(*),YPRIME(*),RWORK(*),IWORK(*)
+!  or the differential equation in subroutine RES. Any such
 !  alteration constitutes a new problem and must be treated as such,
 !  i.e., you must start afresh.
 !
-!  you cannot change from vector to scalar error control or vice
-!  versa (info(2)), but you can change the size of the entries of
-!  rtol, atol. increasing a tolerance makes the equation easier
-!  to integrate. decreasing a tolerance will make the equation
+!  You cannot change from vector to scalar error control or vice
+!  versa (INFO(2)), but you can change the size of the entries of
+!  RTOL, ATOL. Increasing a tolerance makes the equation easier
+!  to integrate. Decreasing a tolerance will make the equation
 !  harder to integrate and should generally be avoided.
 !
-!  you can switch from the intermediate-output mode to the
-!  interval mode (info(3)) or vice versa at any time.
+!  You can switch from the intermediate-output mode to the
+!  interval mode (INFO(3)) or vice versa at any time.
 !
-!  if it has been necessary to prevent the integration from going
-!  past a point tstop (info(4), rwork(1)), keep in mind that the
-!  code will not integrate to any tout beyond the currently
-!  specified tstop. once tstop has been reached you must change
-!  the value of tstop or set info(4)=0. you may change info(4)
-!  or tstop at any time but you must supply the value of tstop in
-!  rwork(1) whenever you set info(4)=1.
+!  If it has been necessary to prevent the integration from going
+!  past a point TSTOP (INFO(4), RWORK(1)), keep in mind that the
+!  code will not integrate to any TOUT beyond the currently
+!  specified TSTOP. Once TSTOP has been reached you must change
+!  the value of TSTOP or set INFO(4)=0. You may change INFO(4)
+!  or TSTOP at any time but you must supply the value of TSTOP in
+!  RWORK(1) whenever you set INFO(4)=1.
 !
-!  do not change info(5), info(6), iwork(1), or iwork(2)
+!  Do not change INFO(5), INFO(6), IWORK(1), or IWORK(2)
 !  unless you are going to restart the code.
 !
-!                 *** following a completed task ***
-!  if
-!     idid = 1, call the code again to continue the integration
-!                  another step in the direction of tout.
+!                 *** Following a completed task ***
+!  If
+!     IDID = 1, call the code again to continue the integration
+!                  another step in the direction of TOUT.
 !
-!     idid = 2 or 3, define a new tout and call the code again.
-!                  tout must be different from t. you cannot change
+!     IDID = 2 or 3, define a new TOUT and call the code again.
+!                  TOUT must be different from T. You cannot change
 !                  the direction of integration without restarting.
 !
-!                 *** following an interrupted task ***
-!               to show the code that you realize the task was
+!                 *** Following an interrupted task ***
+!               To show the code that you realize the task was
 !               interrupted and that you want to continue, you
-!               must take appropriate action and set info(1) = 1
-!  if
-!    idid = -1, the code has taken about 500 steps.
-!                  if you want to continue, set info(1) = 1 and
-!                  call the code again. an additional 500 steps
+!               must take appropriate action and set INFO(1) = 1
+!  If
+!    IDID = -1, The code has taken about 500 steps.
+!                  If you want to continue, set INFO(1) = 1 and
+!                  call the code again. An additional 500 steps
 !                  will be allowed.
 !
-!    idid = -2, the error tolerances rtol, atol have been
+!    IDID = -2, The error tolerances RTOL, ATOL have been
 !                  increased to values the code estimates appropriate
-!                  for continuing. you may want to change them
-!                  yourself. if you are sure you want to continue
-!                  with relaxed error tolerances, set info(1)=1 and
+!                  for continuing. You may want to change them
+!                  yourself. If you are sure you want to continue
+!                  with relaxed error tolerances, set INFO(1)=1 and
 !                  call the code again.
 !
-!    idid = -3, a solution component is zero and you set the
-!                  corresponding component of atol to zero. if you
+!    IDID = -3, A solution component is zero and you set the
+!                  corresponding component of ATOL to zero. If you
 !                  are sure you want to continue, you must first
 !                  alter the error criterion to use positive values
-!                  for those components of atol corresponding to zero
-!                  solution components, then set info(1)=1 and call
+!                  for those components of ATOL corresponding to zero
+!                  solution components, then set INFO(1)=1 and call
 !                  the code again.
 !
-!    idid = -4,-5  --- cannot occur with this code.
+!    IDID = -4,-5  --- Cannot occur with this code.
 !
-!    idid = -6, repeated error test failures occurred on the
-!                  last attempted step in ddassl. a singularity in the
-!                  solution may be present. if you are absolutely
+!    IDID = -6, Repeated error test failures occurred on the
+!                  last attempted step in DDASSL. A singularity in the
+!                  solution may be present. If you are absolutely
 !                  certain you want to continue, you should restart
-!                  the integration. (provide initial values of y and
-!                  yprime which are consistent)
+!                  the integration. (Provide initial values of Y and
+!                  YPRIME which are consistent)
 !
-!    idid = -7, repeated convergence test failures occurred
-!                  on the last attempted step in ddassl. an inaccurate
-!                  or ill-conditioned jacobian may be the problem. if
+!    IDID = -7, Repeated convergence test failures occurred
+!                  on the last attempted step in DDASSL. An inaccurate
+!                  or ill-conditioned JACOBIAN may be the problem. If
 !                  you are absolutely certain you want to continue, you
 !                  should restart the integration.
 !
-!    idid = -8, the matrix of partial derivatives is singular.
-!                  some of your equations may be redundant.
-!                  ddassl cannot solve the problem as stated.
-!                  it is possible that the redundant equations
-!                  could be removed, and then ddassl could
-!                  solve the problem. it is also possible
+!    IDID = -8, The matrix of partial derivatives is singular.
+!                  Some of your equations may be redundant.
+!                  DDASSL cannot solve the problem as stated.
+!                  It is possible that the redundant equations
+!                  could be removed, and then DDASSL could
+!                  solve the problem. It is also possible
 !                  that a solution to your problem either
 !                  does not exist or is not unique.
 !
-!    idid = -9, ddassl had multiple convergence test
+!    IDID = -9, DDASSL had multiple convergence test
 !                  failures, preceded by multiple error
 !                  test failures, on the last attempted step.
-!                  it is possible that your problem
+!                  It is possible that your problem
 !                  is ill-posed, and cannot be solved
-!                  using this code. or, there may be a
+!                  using this code. Or, there may be a
 !                  discontinuity or a singularity in the
-!                  solution. if you are absolutely certain
+!                  solution. If you are absolutely certain
 !                  you want to continue, you should restart
 !                  the integration.
 !
-!    idid =-10, ddassl had multiple convergence test failures
-!                  because ires was equal to minus one.
-!                  if you are absolutely certain you want
+!    IDID =-10, DDASSL had multiple convergence test failures
+!                  because IRES was equal to minus one.
+!                  If you are absolutely certain you want
 !                  to continue, you should restart the
 !                  integration.
 !
-!    idid =-11, ires=-2 was encountered, and control is being
+!    IDID =-11, IRES=-2 was encountered, and control is being
 !                  returned to the calling program.
 !
-!    idid =-12, ddassl failed to compute the initial yprime.
-!                  this could happen because the initial
-!                  approximation to yprime was not very good, or
-!                  if a yprime consistent with the initial y
-!                  does not exist. the problem could also be caused
+!    IDID =-12, DDASSL failed to compute the initial YPRIME.
+!                  This could happen because the initial
+!                  approximation to YPRIME was not very good, or
+!                  if a YPRIME consistent with the initial Y
+!                  does not exist. The problem could also be caused
 !                  by an inaccurate or singular iteration matrix.
 !
-!    idid = -13,..,-32  --- cannot occur with this code.
+!    IDID = -13,..,-32  --- Cannot occur with this code.
 !
 !
-!                 *** following a terminated task ***
+!                 *** Following a terminated task ***
 !
-!  if idid= -33, you cannot continue the solution of this problem.
-!                  an attempt to do so will result in your
+!  If IDID= -33, you cannot continue the solution of this problem.
+!                  An attempt to do so will result in your
 !                  run being terminated.
 !
 !
-!  -------- error messages ---------------------------------------------
+!  -------- ERROR MESSAGES ---------------------------------------------
 !
-!      the slatec error print routine xermsg is called in the event of
-!   unsuccessful completion of a task.  most of these are treated as
+!      The SLATEC error print routine XERMSG is called in the event of
+!   unsuccessful completion of a task.  Most of these are treated as
 !   "recoverable errors", which means that (unless the user has directed
 !   otherwise) control will be returned to the calling program for
 !   possible action after the message has been printed.
 !
-!   in the event of a negative value of idid other than -33, an appro-
-!   priate message is printed and the "error number" printed by xermsg
-!   is the value of idid.  there are quite a number of illegal input
-!   errors that can lead to a returned value idid=-33.  the conditions
+!   In the event of a negative value of IDID other than -33, an appro-
+!   priate message is printed and the "error number" printed by XERMSG
+!   is the value of IDID.  There are quite a number of illegal input
+!   errors that can lead to a returned value IDID=-33.  The conditions
 !   and their printed "error numbers" are as follows:
 !
-!   error number       condition
+!   Error number       Condition
 !
-      subroutine ddassl (eqn, neq, t, y, yprime, tout, info, rtol, atol,&
-     &   idid, rwork, lrw, iwork, liw, rpar, ipar)
-!        1       some element of info vector is not zero or one.
-!        2       neq .le. 0
-!        3       maxord not in range.
-!        4       lrw is less than the required length for rwork.
-!        5       liw is less than the required length for iwork.
-!        6       some element of rtol is .lt. 0
-!        7       some element of atol is .lt. 0
-!        8       all elements of rtol and atol are zero.
-!        9       info(4)=1 and tstop is behind tout.
-!       10       hmax .lt. 0.0
-!       11       tout is behind t.
-!       12       info(8)=1 and h0=0.0
-!       13       some element of wt is .le. 0.0
-!       14       tout is too close to t to start integration.
-!       15       info(4)=1 and tstop is behind t.
-!       16       --( not used in this version )--
-!       17       ml illegal.  either .lt. 0 or .gt. neq
-!       18       mu illegal.  either .lt. 0 or .gt. neq
-!       19       tout = t.
+      SUBROUTINE DDASSL (problem, NEQ, T, Y, YPRIME, TOUT, INFO, RTOL, ATOL,&
+     &   IDID, RWORK, LRW, IWORK, LIW, RPAR, IPAR)
+!        1       Some element of INFO vector is not zero or one.
+!        2       NEQ .le. 0
+!        3       MAXORD not in range.
+!        4       LRW is less than the required length for RWORK.
+!        5       LIW is less than the required length for IWORK.
+!        6       Some element of RTOL is .lt. 0
+!        7       Some element of ATOL is .lt. 0
+!        8       All elements of RTOL and ATOL are zero.
+!        9       INFO(4)=1 and TSTOP is behind TOUT.
+!       10       HMAX .lt. 0.0
+!       11       TOUT is behind T.
+!       12       INFO(8)=1 and H0=0.0
+!       13       Some element of WT is .le. 0.0
+!       14       TOUT is too close to T to start integration.
+!       15       INFO(4)=1 and TSTOP is behind T.
+!       16       --( Not used in this version )--
+!       17       ML illegal.  Either .lt. 0 or .gt. NEQ
+!       18       MU illegal.  Either .lt. 0 or .gt. NEQ
+!       19       TOUT = T.
 !
-!   if ddassl is called again without any action taken to remove the
-!   cause of an unsuccessful return, xermsg will be called with a fatal
+!   If DDASSL is called again without any action taken to remove the
+!   cause of an unsuccessful return, XERMSG will be called with a fatal
 !   error flag, which will cause unconditional termination of the
-!   program.  there are two such fatal errors:
+!   program.  There are two such fatal errors:
 !
-!   error number -998:  the last step was terminated with a negative
-!       value of idid other than -33, and no appropriate action was
+!   Error number -998:  The last step was terminated with a negative
+!       value of IDID other than -33, and no appropriate action was
 !       taken.
 !
-!   error number -999:  the previous call was terminated because of
-!       illegal input (idid=-33) and there is illegal input in the
-!       present call, as well.  (suspect infinite loop.)
+!   Error number -999:  The previous call was terminated because of
+!       illegal input (IDID=-33) and there is illegal input in the
+!       present call, as well.  (Suspect infinite loop.)
 !
 !  ---------------------------------------------------------------------
 !
-!***references  a description of dassl: a differential/algebraic
-!                 system solver, l. r. petzold, sand82-8637,
-!                 sandia national laboratories, september 1982.
-!***routines called  d1mach, ddaini, ddanrm, ddastp, ddatrp, ddawts,
-!                    xermsg
-!***revision history  (yymmdd)
-!   830315  date written
-!   880387  code changes made.  all common statements have been
-!           replaced by a data statement, which defines pointers into
-!           rwork, and parameter statements which define pointers
-!           into iwork.  as well the documentation has gone through
+!***REFERENCES  A DESCRIPTION OF DASSL: A DIFFERENTIAL/ALGEBRAIC
+!                 SYSTEM SOLVER, L. R. PETZOLD, SAND82-8637,
+!                 SANDIA NATIONAL LABORATORIES, SEPTEMBER 1982.
+!***ROUTINES CALLED  D1MACH, DDAINI, DDANRM, DDASTP, DDATRP, DDAWTS,
+!                    XERMSG
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   880387  Code changes made.  All common statements have been
+!           replaced by a DATA statement, which defines pointers into
+!           RWORK, and PARAMETER statements which define pointers
+!           into IWORK.  As well the documentation has gone through
 !           grammatical changes.
-!   881005  the prologue has been changed to mixed case.
-!           the subordinate routines had revision dates changed to
+!   881005  The prologue has been changed to mixed case.
+!           The subordinate routines had revision dates changed to
 !           this date, although the documentation for these routines
-!           is all upper case.  no code changes.
-!   890511  code changes made.  the data statement in the declaration
-!           section of ddassl was replaced with a parameter
-!           statement.  also the statement s = 100.d0 was removed
-!           from the top of the newton iteration in ddastp.
-!           the subordinate routines had revision dates changed to
+!           is all upper case.  No code changes.
+!   890511  Code changes made.  The DATA statement in the declaration
+!           section of DDASSL was replaced with a PARAMETER
+!           statement.  Also the statement S = 100.D0 was removed
+!           from the top of the Newton iteration in DDASTP.
+!           The subordinate routines had revision dates changed to
 !           this date.
-!   890517  the revision date syntax was replaced with the revision
-!           history syntax.  also the "deck" comment was added to
-!           the top of all subroutines.  these changes are consistent
-!           with new slatec guidelines.
-!           the subordinate routines had revision dates changed to
-!           this date.  no code changes.
-!   891013  code changes made.
-!           removed all occurrences of float or dble.  all operations
+!   890517  The revision date syntax was replaced with the revision
+!           history syntax.  Also the "DECK" comment was added to
+!           the top of all subroutines.  These changes are consistent
+!           with new SLATEC guidelines.
+!           The subordinate routines had revision dates changed to
+!           this date.  No code changes.
+!   891013  Code changes made.
+!           Removed all occurrences of FLOAT or DBLE.  All operations
 !           are now performed with "mixed-mode" arithmetic.
-!           also, specific function names were replaced with generic
-!           function names to be consistent with new slatec guidelines.
-!           in particular:
-!              replaced dsqrt with sqrt everywhere.
-!              replaced dabs with abs everywhere.
-!              replaced dmin1 with min everywhere.
-!              replaced min0 with min everywhere.
-!              replaced dmax1 with max everywhere.
-!              replaced max0 with max everywhere.
-!              replaced dsign with sign everywhere.
-!           also replaced revision date with revision history in all
+!           Also, specific function names were replaced with generic
+!           function names to be consistent with new SLATEC guidelines.
+!           In particular:
+!              Replaced DSQRT with SQRT everywhere.
+!              Replaced DABS with ABS everywhere.
+!              Replaced DMIN1 with MIN everywhere.
+!              Replaced MIN0 with MIN everywhere.
+!              Replaced DMAX1 with MAX everywhere.
+!              Replaced MAX0 with MAX everywhere.
+!              Replaced DSIGN with SIGN everywhere.
+!           Also replaced REVISION DATE with REVISION HISTORY in all
 !           subordinate routines.
-!   901004  miscellaneous changes to prologue to complete conversion
-!           to slatec 4.0 format.  no code changes.  (f.n.fritsch)
-!   901009  corrected gams classification code and converted subsidiary
-!           routines to 4.0 format.  no code changes.  (f.n.fritsch)
-!   901010  converted xerrwv calls to xermsg calls.  (r.clemens, afwl)
-!   901019  code changes made.
-!           merged slatec 4.0 changes with previous changes made
-!           by c. ulrich.  below is a history of the changes made by
-!           c. ulrich. (changes in subsidiary routines are implied
+!   901004  Miscellaneous changes to prologue to complete conversion
+!           to SLATEC 4.0 format.  No code changes.  (F.N.Fritsch)
+!   901009  Corrected GAMS classification code and converted subsidiary
+!           routines to 4.0 format.  No code changes.  (F.N.Fritsch)
+!   901010  Converted XERRWV calls to XERMSG calls.  (R.Clemens, AFWL)
+!   901019  Code changes made.
+!           Merged SLATEC 4.0 changes with previous changes made
+!           by C. Ulrich.  Below is a history of the changes made by
+!           C. Ulrich. (Changes in subsidiary routines are implied
 !           by this history)
-!           891228  bug was found and repaired inside the ddassl
-!                   and ddaini routines.  ddaini was incorrectly
-!                   returning the initial t with y and yprime
-!                   computed at t+h.  the routine now returns t+h
-!                   rather than the initial t.
-!                   cosmetic changes made to ddastp.
-!           900904  three modifications were made to fix a bug (inside
-!                   ddassl) re interpolation for continuation calls and
-!                   cases where tn is very close to tstop:
+!           891228  Bug was found and repaired inside the DDASSL
+!                   and DDAINI routines.  DDAINI was incorrectly
+!                   returning the initial T with Y and YPRIME
+!                   computed at T+H.  The routine now returns T+H
+!                   rather than the initial T.
+!                   Cosmetic changes made to DDASTP.
+!           900904  Three modifications were made to fix a bug (inside
+!                   DDASSL) re interpolation for continuation calls and
+!                   cases where TN is very close to TSTOP:
 !
-!                   1) in testing for whether h is too large, just
-!                      compare h to (tstop - tn), rather than
-!                      (tstop - tn) * (1-4*uround), and set h to
-!                      tstop - tn.  this will force ddastp to step
-!                      exactly to tstop under certain situations
-!                      (i.e. when h returned from ddastp would otherwise
-!                      take tn beyond tstop).
+!                   1) In testing for whether H is too large, just
+!                      compare H to (TSTOP - TN), rather than
+!                      (TSTOP - TN) * (1-4*UROUND), and set H to
+!                      TSTOP - TN.  This will force DDASTP to step
+!                      exactly to TSTOP under certain situations
+!                      (i.e. when H returned from DDASTP would otherwise
+!                      take TN beyond TSTOP).
 !
-!                   2) inside the ddastp loop, interpolate exactly to
-!                      tstop if tn is very close to tstop (rather than
-!                      interpolating to within roundoff of tstop).
+!                   2) Inside the DDASTP loop, interpolate exactly to
+!                      TSTOP if TN is very close to TSTOP (rather than
+!                      interpolating to within roundoff of TSTOP).
 !
-!                   3) modified idid description for idid = 2 to say
+!                   3) Modified IDID description for IDID = 2 to say
 !                      that the solution is returned by stepping exactly
-!                      to tstop, rather than tout.  (in some cases the
+!                      to TSTOP, rather than TOUT.  (In some cases the
 !                      solution is actually obtained by extrapolating
-!                      over a distance near unit roundoff to tstop,
+!                      over a distance near unit roundoff to TSTOP,
 !                      but this small distance is deemed acceptable in
 !                      these circumstances.)
-!   901026  added explicit declarations for all variables and minor
+!   901026  Added explicit declarations for all variables and minor
 !           cosmetic changes to prologue, removed unreferenced labels,
-!           and improved xermsg calls.  (fnf)
-!   901030  added error messages section and reworked other sections to
-!           be of more uniform format.  (fnf)
-!   910624  fixed minor bug related to hmax (six lines after label
-!           525).  (lrp)
-!   000711  fixed tests on (tn - tout) at 420 and 440 (ach)
-!***end prologue  ddassl
+!           and improved XERMSG calls.  (FNF)
+!   901030  Added ERROR MESSAGES section and reworked other sections to
+!           be of more uniform format.  (FNF)
+!   910624  Fixed minor bug related to HMAX (six lines after label
+!           525).  (LRP)
+!   000711  Fixed tests on (TN - TOUT) at 420 and 440 (ACH)
+!***END PROLOGUE  DDASSL
 !
-!**end
+!**End
 !
-!     declare arguments.
+!     Declare arguments.
 !
-      integer  neq, info(15), idid, lrw, iwork(*), liw, ipar(*)
-      double precision                                                  &
-     &   t, y(*), yprime(*), tout, rtol(*), atol(*), rwork(*),          &
-     &   rpar(*)
-      class(problem_ddassl) :: eqn
+      INTEGER  NEQ, INFO(15), IDID, LRW, IWORK(*), LIW, IPAR(*)
+      DOUBLE PRECISION                                                  &
+     &   T, Y(*), YPRIME(*), TOUT, RTOL(*), ATOL(*), RWORK(*),          &
+     &   RPAR(*)
+      class(problem_ddassl), target :: problem
 !
-!     declare local variables.
+!     Declare externals.
 !
-      integer  i, itemp, lalpha, lbeta, lcj, lcjold, lctf, ldelta,      &
-     &   leniw, lenpd, lenrw, le, letf, lgamma, lh, lhmax, lhold, lipvt,&
-     &   ljcalc, lk, lkold, liwm, lml, lmtype, lmu, lmxord, lnje, lnpd, &
-     &   lnre, lns, lnst, lnstl, lpd, lphase, lphi, lpsi, lround, ls,   &
-     &   lsigma, ltn, ltstop, lwm, lwt, mband, msave, mxord, npd, ntemp,&
-     &   nzflg
-      double precision                                                  &
-     &   atoli, h, hmax, hmin, ho, r, rh, rtoli, tdist, tn, tnext,      &
-     &   tstop, uround, ypnorm
-      logical  done
-!       auxiliary variables for conversion of values to be included in
+      EXTERNAL  D1MACH
+      DOUBLE PRECISION  D1MACH
+!
+!     Declare local variables.
+!
+      INTEGER  I, ITEMP, LALPHA, LBETA, LCJ, LCJOLD, LCTF, LDELTA,      &
+     &   LENIW, LENPD, LENRW, LE, LETF, LGAMMA, LH, LHMAX, LHOLD, LIPVT,&
+     &   LJCALC, LK, LKOLD, LIWM, LML, LMTYPE, LMU, LMXORD, LNJE, LNPD, &
+     &   LNRE, LNS, LNST, LNSTL, LPD, LPHASE, LPHI, LPSI, LROUND, LS,   &
+     &   LSIGMA, LTN, LTSTOP, LWM, LWT, MBAND, MSAVE, MXORD, NPD, NTEMP,&
+     &   NZFLG
+      DOUBLE PRECISION                                                  &
+     &   ATOLI, H, HMAX, HMIN, HO, R, RH, RTOLI, TDIST, TN, TNEXT,      &
+     &   TSTOP, UROUND, YPNORM
+      LOGICAL  DONE
+!       Auxiliary variables for conversion of values to be included in
 !       error messages.
-      character*8  xern1, xern2
-      character*16 xern3, xern4
+      CHARACTER*8  XERN1, XERN2
+      CHARACTER*16 XERN3, XERN4
 !
-!     set pointers into iwork
-      parameter (lml=1, lmu=2, lmxord=3, lmtype=4, lnst=11,             &
-     &  lnre=12, lnje=13, letf=14, lctf=15, lnpd=16,                    &
-     &  lipvt=21, ljcalc=5, lphase=6, lk=7, lkold=8,                    &
-     &  lns=9, lnstl=10, liwm=1)
+!     SET POINTERS INTO IWORK
+      PARAMETER (LML=1, LMU=2, LMXORD=3, LMTYPE=4, LNST=11,             &
+     &  LNRE=12, LNJE=13, LETF=14, LCTF=15, LNPD=16,                    &
+     &  LIPVT=21, LJCALC=5, LPHASE=6, LK=7, LKOLD=8,                    &
+     &  LNS=9, LNSTL=10, LIWM=1)
 !
-!     set relative offset into rwork
-      parameter (npd=1)
+!     SET RELATIVE OFFSET INTO RWORK
+      PARAMETER (NPD=1)
 !
-!     set pointers into rwork
-      parameter (ltstop=1, lhmax=2, lh=3, ltn=4,                        &
-     &  lcj=5, lcjold=6, lhold=7, ls=8, lround=9,                       &
-     &  lalpha=11, lbeta=17, lgamma=23,                                 &
-     &  lpsi=29, lsigma=35, ldelta=41)
+!     SET POINTERS INTO RWORK
+      PARAMETER (LTSTOP=1, LHMAX=2, LH=3, LTN=4,                        &
+     &  LCJ=5, LCJOLD=6, LHOLD=7, LS=8, LROUND=9,                       &
+     &  LALPHA=11, LBETA=17, LGAMMA=23,                                 &
+     &  LPSI=29, LSIGMA=35, LDELTA=41)
 !
-!***first executable statement  ddassl
-      if(info(1).ne.0)go to 100
-!
-!-----------------------------------------------------------------------
-!     this block is executed for the initial call only.
-!     it contains checking of inputs and initializations.
-!-----------------------------------------------------------------------
-!
-!     first check info array to make sure all elements of info
-!     are either zero or one.
-      do 10 i=2,11
-         if(info(i).ne.0.and.info(i).ne.1)go to 701
-   10    continue
-!
-      if(neq.le.0)go to 702
-!
-!     check and compute maximum order
-      mxord=5
-      if(info(9).eq.0)go to 20
-         mxord=iwork(lmxord)
-         if(mxord.lt.1.or.mxord.gt.5)go to 703
-   20    iwork(lmxord)=mxord
-!
-!     compute mtype,lenpd,lenrw.check ml and mu.
-      if(info(6).ne.0)go to 40
-         lenpd=neq**2
-         lenrw=40+(iwork(lmxord)+4)*neq+lenpd
-         if(info(5).ne.0)go to 30
-            iwork(lmtype)=2
-            go to 60
-   30       iwork(lmtype)=1
-            go to 60
-   40 if(iwork(lml).lt.0.or.iwork(lml).ge.neq)go to 717
-      if(iwork(lmu).lt.0.or.iwork(lmu).ge.neq)go to 718
-      lenpd=(2*iwork(lml)+iwork(lmu)+1)*neq
-      if(info(5).ne.0)go to 50
-         iwork(lmtype)=5
-         mband=iwork(lml)+iwork(lmu)+1
-         msave=(neq/mband)+1
-         lenrw=40+(iwork(lmxord)+4)*neq+lenpd+2*msave
-         go to 60
-   50    iwork(lmtype)=4
-         lenrw=40+(iwork(lmxord)+4)*neq+lenpd
-!
-!     check lengths of rwork and iwork
-   60 leniw=20+neq
-      iwork(lnpd)=lenpd
-      if(lrw.lt.lenrw)go to 704
-      if(liw.lt.leniw)go to 705
-!
-!     check to see that tout is different from t
-      if(tout .eq. t)go to 719
-!
-!     check hmax
-      if(info(7).eq.0)go to 70
-         hmax=rwork(lhmax)
-         if(hmax.le.0.0d0)go to 710
-   70 continue
-!
-!     initialize counters
-      iwork(lnst)=0
-      iwork(lnre)=0
-      iwork(lnje)=0
-!
-      iwork(lnstl)=0
-      idid=1
-      go to 200
+!***FIRST EXECUTABLE STATEMENT  DDASSL
+      IF(INFO(1).NE.0)GO TO 100
 !
 !-----------------------------------------------------------------------
-!     this block is for continuation calls
-!     only. here we check info(1), and if the
-!     last step was interrupted we check whether
-!     appropriate action was taken.
+!     THIS BLOCK IS EXECUTED FOR THE INITIAL CALL ONLY.
+!     IT CONTAINS CHECKING OF INPUTS AND INITIALIZATIONS.
 !-----------------------------------------------------------------------
 !
-  100 continue
-      if(info(1).eq.1)go to 110
-      if(info(1).ne.-1)go to 701
+!     FIRST CHECK INFO ARRAY TO MAKE SURE ALL ELEMENTS OF INFO
+!     ARE EITHER ZERO OR ONE.
+      DO 10 I=2,11
+         IF(INFO(I).NE.0.AND.INFO(I).NE.1)GO TO 701
+   10    CONTINUE
 !
-!     if we are here, the last step was interrupted
-!     by an error condition from ddastp, and
-!     appropriate action was not taken. this
-!     is a fatal error.
-      write (xern1, '(i8)') idid
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'the last step terminated with a negative value of idid = ' // &
-     &   xern1 // ' and no appropriate action was taken.  ' //          &
-     &   'run terminated', -998, 2)
-      return
-  110 continue
-      iwork(lnstl)=iwork(lnst)
+      IF(NEQ.LE.0)GO TO 702
+!
+!     CHECK AND COMPUTE MAXIMUM ORDER
+      MXORD=5
+      IF(INFO(9).EQ.0)GO TO 20
+         MXORD=IWORK(LMXORD)
+         IF(MXORD.LT.1.OR.MXORD.GT.5)GO TO 703
+   20    IWORK(LMXORD)=MXORD
+!
+!     COMPUTE MTYPE,LENPD,LENRW.CHECK ML AND MU.
+      IF(INFO(6).NE.0)GO TO 40
+         LENPD=NEQ**2
+         LENRW=40+(IWORK(LMXORD)+4)*NEQ+LENPD
+         IF(INFO(5).NE.0)GO TO 30
+            IWORK(LMTYPE)=2
+            GO TO 60
+   30       IWORK(LMTYPE)=1
+            GO TO 60
+   40 IF(IWORK(LML).LT.0.OR.IWORK(LML).GE.NEQ)GO TO 717
+      IF(IWORK(LMU).LT.0.OR.IWORK(LMU).GE.NEQ)GO TO 718
+      LENPD=(2*IWORK(LML)+IWORK(LMU)+1)*NEQ
+      IF(INFO(5).NE.0)GO TO 50
+         IWORK(LMTYPE)=5
+         MBAND=IWORK(LML)+IWORK(LMU)+1
+         MSAVE=(NEQ/MBAND)+1
+         LENRW=40+(IWORK(LMXORD)+4)*NEQ+LENPD+2*MSAVE
+         GO TO 60
+   50    IWORK(LMTYPE)=4
+         LENRW=40+(IWORK(LMXORD)+4)*NEQ+LENPD
+!
+!     CHECK LENGTHS OF RWORK AND IWORK
+   60 LENIW=20+NEQ
+      IWORK(LNPD)=LENPD
+      IF(LRW.LT.LENRW)GO TO 704
+      IF(LIW.LT.LENIW)GO TO 705
+!
+!     CHECK TO SEE THAT TOUT IS DIFFERENT FROM T
+      IF(TOUT .EQ. T)GO TO 719
+!
+!     CHECK HMAX
+      IF(INFO(7).EQ.0)GO TO 70
+         HMAX=RWORK(LHMAX)
+         IF(HMAX.LE.0.0D0)GO TO 710
+   70 CONTINUE
+!
+!     INITIALIZE COUNTERS
+      IWORK(LNST)=0
+      IWORK(LNRE)=0
+      IWORK(LNJE)=0
+!
+      IWORK(LNSTL)=0
+      IDID=1
+      GO TO 200
 !
 !-----------------------------------------------------------------------
-!     this block is executed on all calls.
-!     the error tolerance parameters are
-!     checked, and the work array pointers
-!     are set.
+!     THIS BLOCK IS FOR CONTINUATION CALLS
+!     ONLY. HERE WE CHECK INFO(1), AND IF THE
+!     LAST STEP WAS INTERRUPTED WE CHECK WHETHER
+!     APPROPRIATE ACTION WAS TAKEN.
 !-----------------------------------------------------------------------
 !
-  200 continue
-!     check rtol,atol
-      nzflg=0
-      rtoli=rtol(1)
-      atoli=atol(1)
-      do 210 i=1,neq
-         if(info(2).eq.1)rtoli=rtol(i)
-         if(info(2).eq.1)atoli=atol(i)
-         if(rtoli.gt.0.0d0.or.atoli.gt.0.0d0)nzflg=1
-         if(rtoli.lt.0.0d0)go to 706
-         if(atoli.lt.0.0d0)go to 707
-  210    continue
-      if(nzflg.eq.0)go to 708
+  100 CONTINUE
+      IF(INFO(1).EQ.1)GO TO 110
+      IF(INFO(1).NE.-1)GO TO 701
 !
-!     set up rwork storage.iwork storage is fixed
-!     in data statement.
-      le=ldelta+neq
-      lwt=le+neq
-      lphi=lwt+neq
-      lpd=lphi+(iwork(lmxord)+1)*neq
-      lwm=lpd
-      ntemp=npd+iwork(lnpd)
-      if(info(1).eq.1)go to 400
+!     IF WE ARE HERE, THE LAST STEP WAS INTERRUPTED
+!     BY AN ERROR CONDITION FROM DDASTP, AND
+!     APPROPRIATE ACTION WAS NOT TAKEN. THIS
+!     IS A FATAL ERROR.
+      WRITE (XERN1, '(I8)') IDID
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'THE LAST STEP TERMINATED WITH A NEGATIVE VALUE OF IDID = ' // &
+     &   XERN1 // ' AND NO APPROPRIATE ACTION WAS TAKEN.  ' //          &
+     &   'RUN TERMINATED', -998, 2)
+      RETURN
+  110 CONTINUE
+      IWORK(LNSTL)=IWORK(LNST)
 !
 !-----------------------------------------------------------------------
-!     this block is executed on the initial call
-!     only. set the initial step size, and
-!     the error weight vector, and phi.
-!     compute initial yprime, if necessary.
+!     THIS BLOCK IS EXECUTED ON ALL CALLS.
+!     THE ERROR TOLERANCE PARAMETERS ARE
+!     CHECKED, AND THE WORK ARRAY POINTERS
+!     ARE SET.
 !-----------------------------------------------------------------------
 !
-      tn=t
-      idid=1
+  200 CONTINUE
+!     CHECK RTOL,ATOL
+      NZFLG=0
+      RTOLI=RTOL(1)
+      ATOLI=ATOL(1)
+      DO 210 I=1,NEQ
+         IF(INFO(2).EQ.1)RTOLI=RTOL(I)
+         IF(INFO(2).EQ.1)ATOLI=ATOL(I)
+         IF(RTOLI.GT.0.0D0.OR.ATOLI.GT.0.0D0)NZFLG=1
+         IF(RTOLI.LT.0.0D0)GO TO 706
+         IF(ATOLI.LT.0.0D0)GO TO 707
+  210    CONTINUE
+      IF(NZFLG.EQ.0)GO TO 708
 !
-!     set error weight vector wt
-      call ddawts(neq,info(2),rtol,atol,y,rwork(lwt),rpar,ipar)
-      do 305 i = 1,neq
-         if(rwork(lwt+i-1).le.0.0d0) go to 713
-  305    continue
+!     SET UP RWORK STORAGE.IWORK STORAGE IS FIXED
+!     IN DATA STATEMENT.
+      LE=LDELTA+NEQ
+      LWT=LE+NEQ
+      LPHI=LWT+NEQ
+      LPD=LPHI+(IWORK(LMXORD)+1)*NEQ
+      LWM=LPD
+      NTEMP=NPD+IWORK(LNPD)
+      IF(INFO(1).EQ.1)GO TO 400
 !
-!     compute unit roundoff and hmin
-      uround = d1mach(4)
-      ! uround = epsilon(uround)
-      rwork(lround) = uround
-      hmin = 4.0d0*uround*max(abs(t),abs(tout))
+!-----------------------------------------------------------------------
+!     THIS BLOCK IS EXECUTED ON THE INITIAL CALL
+!     ONLY. SET THE INITIAL STEP SIZE, AND
+!     THE ERROR WEIGHT VECTOR, AND PHI.
+!     COMPUTE INITIAL YPRIME, IF NECESSARY.
+!-----------------------------------------------------------------------
 !
-!     check initial interval to see that it is long enough
-      tdist = abs(tout - t)
-      if(tdist .lt. hmin) go to 714
+      TN=T
+      IDID=1
 !
-!     check ho, if this was input
-      if (info(8) .eq. 0) go to 310
-         ho = rwork(lh)
-         if ((tout - t)*ho .lt. 0.0d0) go to 711
-         if (ho .eq. 0.0d0) go to 712
-         go to 320
-  310  continue
+!     SET ERROR WEIGHT VECTOR WT
+      CALL DDAWTS(NEQ,INFO(2),RTOL,ATOL,Y,RWORK(LWT),RPAR,IPAR)
+      DO 305 I = 1,NEQ
+         IF(RWORK(LWT+I-1).LE.0.0D0) GO TO 713
+  305    CONTINUE
 !
-!     compute initial stepsize, to be used by either
-!     ddastp or ddaini, depending on info(11)
-      ho = 0.001d0*tdist
-      ypnorm = ddanrm(neq,yprime,rwork(lwt),rpar,ipar)
-      if (ypnorm .gt. 0.5d0/ho) ho = 0.5d0/ypnorm
-      ho = sign(ho,tout-t)
-!     adjust ho if necessary to meet hmax bound
-  320 if (info(7) .eq. 0) go to 330
-         rh = abs(ho)/rwork(lhmax)
-         if (rh .gt. 1.0d0) ho = ho/rh
-!     compute tstop, if applicable
-  330 if (info(4) .eq. 0) go to 340
-         tstop = rwork(ltstop)
-         if ((tstop - t)*ho .lt. 0.0d0) go to 715
-         if ((t + ho - tstop)*ho .gt. 0.0d0) ho = tstop - t
-         if ((tstop - tout)*ho .lt. 0.0d0) go to 709
+!     COMPUTE UNIT ROUNDOFF AND HMIN
+      UROUND = D1MACH(4)
+      RWORK(LROUND) = UROUND
+      HMIN = 4.0D0*UROUND*MAX(ABS(T),ABS(TOUT))
 !
-!     compute initial derivative, updating tn and y, if applicable
-  340 if (info(11) .eq. 0) go to 350
-      call eqn%ddaini(tn,y,yprime,neq,                                      &
-     &  ho,rwork(lwt),idid,rpar,ipar,                           &
-     &  rwork(lphi),rwork(ldelta),rwork(le),                            &
-     &  rwork(lwm),iwork(liwm),hmin,rwork(lround),                      &
-     &  info(10),ntemp)
-      if (idid .lt. 0) go to 390
+!     CHECK INITIAL INTERVAL TO SEE THAT IT IS LONG ENOUGH
+      TDIST = ABS(TOUT - T)
+      IF(TDIST .LT. HMIN) GO TO 714
 !
-!     load h with ho.  store h in rwork(lh)
-  350 h = ho
-      rwork(lh) = h
+!     CHECK HO, IF THIS WAS INPUT
+      IF (INFO(8) .EQ. 0) GO TO 310
+         HO = RWORK(LH)
+         IF ((TOUT - T)*HO .LT. 0.0D0) GO TO 711
+         IF (HO .EQ. 0.0D0) GO TO 712
+         GO TO 320
+  310  CONTINUE
 !
-!     load y and h*yprime into phi(*,1) and phi(*,2)
-      itemp = lphi + neq
-      do 370 i = 1,neq
-         rwork(lphi + i - 1) = y(i)
-  370    rwork(itemp + i - 1) = h*yprime(i)
+!     COMPUTE INITIAL STEPSIZE, TO BE USED BY EITHER
+!     DDASTP OR DDAINI, DEPENDING ON INFO(11)
+      HO = 0.001D0*TDIST
+      YPNORM = DDANRM(NEQ,YPRIME,RWORK(LWT),RPAR,IPAR)
+      IF (YPNORM .GT. 0.5D0/HO) HO = 0.5D0/YPNORM
+      HO = SIGN(HO,TOUT-T)
+!     ADJUST HO IF NECESSARY TO MEET HMAX BOUND
+  320 IF (INFO(7) .EQ. 0) GO TO 330
+         RH = ABS(HO)/RWORK(LHMAX)
+         IF (RH .GT. 1.0D0) HO = HO/RH
+!     COMPUTE TSTOP, IF APPLICABLE
+  330 IF (INFO(4) .EQ. 0) GO TO 340
+         TSTOP = RWORK(LTSTOP)
+         IF ((TSTOP - T)*HO .LT. 0.0D0) GO TO 715
+         IF ((T + HO - TSTOP)*HO .GT. 0.0D0) HO = TSTOP - T
+         IF ((TSTOP - TOUT)*HO .LT. 0.0D0) GO TO 709
 !
-  390 go to 500
+!     COMPUTE INITIAL DERIVATIVE, UPDATING TN AND Y, IF APPLICABLE
+  340 IF (INFO(11) .EQ. 0) GO TO 350
+      CALL DDAINI(problem,TN,Y,YPRIME,NEQ,                                  &
+     &  HO,RWORK(LWT),IDID,RPAR,IPAR,                                   &
+     &  RWORK(LPHI),RWORK(LDELTA),RWORK(LE),                            &
+     &  RWORK(LWM),IWORK(LIWM),HMIN,RWORK(LROUND),                      &
+     &  INFO(10),NTEMP)
+      IF (IDID .LT. 0) GO TO 390
+!
+!     LOAD H WITH HO.  STORE H IN RWORK(LH)
+  350 H = HO
+      RWORK(LH) = H
+!
+!     LOAD Y AND H*YPRIME INTO PHI(*,1) AND PHI(*,2)
+      ITEMP = LPHI + NEQ
+      DO 370 I = 1,NEQ
+         RWORK(LPHI + I - 1) = Y(I)
+  370    RWORK(ITEMP + I - 1) = H*YPRIME(I)
+!
+  390 GO TO 500
 !
 !-------------------------------------------------------
-!     this block is for continuation calls only. its
-!     purpose is to check stop conditions before
-!     taking a step.
-!     adjust h if necessary to meet hmax bound
+!     THIS BLOCK IS FOR CONTINUATION CALLS ONLY. ITS
+!     PURPOSE IS TO CHECK STOP CONDITIONS BEFORE
+!     TAKING A STEP.
+!     ADJUST H IF NECESSARY TO MEET HMAX BOUND
 !-------------------------------------------------------
 !
-  400 continue
-      uround=rwork(lround)
-      done = .false.
-      tn=rwork(ltn)
-      h=rwork(lh)
-      if(info(7) .eq. 0) go to 410
-         rh = abs(h)/rwork(lhmax)
-         if(rh .gt. 1.0d0) h = h/rh
-  410 continue
-      if(t .eq. tout) go to 719
-      if((t - tout)*h .gt. 0.0d0) go to 711
-      if(info(4) .eq. 1) go to 430
-      if(info(3) .eq. 1) go to 420
-      if((tn-tout)*h.lt.0.0d0)go to 490
-      call ddatrp(tn,tout,y,yprime,neq,iwork(lkold),                    &
-     &  rwork(lphi),rwork(lpsi))
-      t=tout
-      idid = 3
-      done = .true.
-      go to 490
-  420 if((tn-t)*h .le. 0.0d0) go to 490
-      if((tn - tout)*h .ge. 0.0d0) go to 425
-      call ddatrp(tn,tn,y,yprime,neq,iwork(lkold),                      &
-     &  rwork(lphi),rwork(lpsi))
-      t = tn
-      idid = 1
-      done = .true.
-      go to 490
-  425 continue
-      call ddatrp(tn,tout,y,yprime,neq,iwork(lkold),                    &
-     &  rwork(lphi),rwork(lpsi))
-      t = tout
-      idid = 3
-      done = .true.
-      go to 490
-  430 if(info(3) .eq. 1) go to 440
-      tstop=rwork(ltstop)
-      if((tn-tstop)*h.gt.0.0d0) go to 715
-      if((tstop-tout)*h.lt.0.0d0)go to 709
-      if((tn-tout)*h.lt.0.0d0)go to 450
-      call ddatrp(tn,tout,y,yprime,neq,iwork(lkold),                    &
-     &   rwork(lphi),rwork(lpsi))
-      t=tout
-      idid = 3
-      done = .true.
-      go to 490
-  440 tstop = rwork(ltstop)
-      if((tn-tstop)*h .gt. 0.0d0) go to 715
-      if((tstop-tout)*h .lt. 0.0d0) go to 709
-      if((tn-t)*h .le. 0.0d0) go to 450
-      if((tn - tout)*h .ge. 0.0d0) go to 445
-      call ddatrp(tn,tn,y,yprime,neq,iwork(lkold),                      &
-     &  rwork(lphi),rwork(lpsi))
-      t = tn
-      idid = 1
-      done = .true.
-      go to 490
-  445 continue
-      call ddatrp(tn,tout,y,yprime,neq,iwork(lkold),                    &
-     &  rwork(lphi),rwork(lpsi))
-      t = tout
-      idid = 3
-      done = .true.
-      go to 490
-  450 continue
-!     check whether we are within roundoff of tstop
-      if(abs(tn-tstop).gt.100.0d0*uround*                               &
-     &   (abs(tn)+abs(h)))go to 460
-      call ddatrp(tn,tstop,y,yprime,neq,iwork(lkold),                   &
-     &  rwork(lphi),rwork(lpsi))
-      idid=2
-      t=tstop
-      done = .true.
-      go to 490
-  460 tnext=tn+h
-      if((tnext-tstop)*h.le.0.0d0)go to 490
-      h=tstop-tn
-      rwork(lh)=h
+  400 CONTINUE
+      UROUND=RWORK(LROUND)
+      DONE = .FALSE.
+      TN=RWORK(LTN)
+      H=RWORK(LH)
+      IF(INFO(7) .EQ. 0) GO TO 410
+         RH = ABS(H)/RWORK(LHMAX)
+         IF(RH .GT. 1.0D0) H = H/RH
+  410 CONTINUE
+      IF(T .EQ. TOUT) GO TO 719
+      IF((T - TOUT)*H .GT. 0.0D0) GO TO 711
+      IF(INFO(4) .EQ. 1) GO TO 430
+      IF(INFO(3) .EQ. 1) GO TO 420
+      IF((TN-TOUT)*H.LT.0.0D0)GO TO 490
+      CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,IWORK(LKOLD),                    &
+     &  RWORK(LPHI),RWORK(LPSI))
+      T=TOUT
+      IDID = 3
+      DONE = .TRUE.
+      GO TO 490
+  420 IF((TN-T)*H .LE. 0.0D0) GO TO 490
+      IF((TN - TOUT)*H .GE. 0.0D0) GO TO 425
+      CALL DDATRP(TN,TN,Y,YPRIME,NEQ,IWORK(LKOLD),                      &
+     &  RWORK(LPHI),RWORK(LPSI))
+      T = TN
+      IDID = 1
+      DONE = .TRUE.
+      GO TO 490
+  425 CONTINUE
+      CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,IWORK(LKOLD),                    &
+     &  RWORK(LPHI),RWORK(LPSI))
+      T = TOUT
+      IDID = 3
+      DONE = .TRUE.
+      GO TO 490
+  430 IF(INFO(3) .EQ. 1) GO TO 440
+      TSTOP=RWORK(LTSTOP)
+      IF((TN-TSTOP)*H.GT.0.0D0) GO TO 715
+      IF((TSTOP-TOUT)*H.LT.0.0D0)GO TO 709
+      IF((TN-TOUT)*H.LT.0.0D0)GO TO 450
+      CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,IWORK(LKOLD),                    &
+     &   RWORK(LPHI),RWORK(LPSI))
+      T=TOUT
+      IDID = 3
+      DONE = .TRUE.
+      GO TO 490
+  440 TSTOP = RWORK(LTSTOP)
+      IF((TN-TSTOP)*H .GT. 0.0D0) GO TO 715
+      IF((TSTOP-TOUT)*H .LT. 0.0D0) GO TO 709
+      IF((TN-T)*H .LE. 0.0D0) GO TO 450
+      IF((TN - TOUT)*H .GE. 0.0D0) GO TO 445
+      CALL DDATRP(TN,TN,Y,YPRIME,NEQ,IWORK(LKOLD),                      &
+     &  RWORK(LPHI),RWORK(LPSI))
+      T = TN
+      IDID = 1
+      DONE = .TRUE.
+      GO TO 490
+  445 CONTINUE
+      CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,IWORK(LKOLD),                    &
+     &  RWORK(LPHI),RWORK(LPSI))
+      T = TOUT
+      IDID = 3
+      DONE = .TRUE.
+      GO TO 490
+  450 CONTINUE
+!     CHECK WHETHER WE ARE WITHIN ROUNDOFF OF TSTOP
+      IF(ABS(TN-TSTOP).GT.100.0D0*UROUND*                               &
+     &   (ABS(TN)+ABS(H)))GO TO 460
+      CALL DDATRP(TN,TSTOP,Y,YPRIME,NEQ,IWORK(LKOLD),                   &
+     &  RWORK(LPHI),RWORK(LPSI))
+      IDID=2
+      T=TSTOP
+      DONE = .TRUE.
+      GO TO 490
+  460 TNEXT=TN+H
+      IF((TNEXT-TSTOP)*H.LE.0.0D0)GO TO 490
+      H=TSTOP-TN
+      RWORK(LH)=H
 !
-  490 if (done) go to 580
+  490 IF (DONE) GO TO 580
 !
 !-------------------------------------------------------
-!     the next block contains the call to the
-!     one-step integrator ddastp.
-!     this is a looping point for the integration steps.
-!     check for too many steps.
-!     update wt.
-!     check for too much accuracy requested.
-!     compute minimum stepsize.
+!     THE NEXT BLOCK CONTAINS THE CALL TO THE
+!     ONE-STEP INTEGRATOR DDASTP.
+!     THIS IS A LOOPING POINT FOR THE INTEGRATION STEPS.
+!     CHECK FOR TOO MANY STEPS.
+!     UPDATE WT.
+!     CHECK FOR TOO MUCH ACCURACY REQUESTED.
+!     COMPUTE MINIMUM STEPSIZE.
 !-------------------------------------------------------
 !
-  500 continue
-!     check for failure to compute initial yprime
-      if (idid .eq. -12) go to 527
+  500 CONTINUE
+!     CHECK FOR FAILURE TO COMPUTE INITIAL YPRIME
+      IF (IDID .EQ. -12) GO TO 527
 !
-!     check for too many steps
-      if((iwork(lnst)-iwork(lnstl)).lt.500)                             &
-     &   go to 510
-           idid=-1
-           go to 527
+!     CHECK FOR TOO MANY STEPS
+      IF((IWORK(LNST)-IWORK(LNSTL)).LT.500)                             &
+     &   GO TO 510
+           IDID=-1
+           GO TO 527
 !
-!     update wt
-  510 call ddawts(neq,info(2),rtol,atol,rwork(lphi),                    &
-     &  rwork(lwt),rpar,ipar)
-      do 520 i=1,neq
-         if(rwork(i+lwt-1).gt.0.0d0)go to 520
-           idid=-3
-           go to 527
-  520 end do
+!     UPDATE WT
+  510 CALL DDAWTS(NEQ,INFO(2),RTOL,ATOL,RWORK(LPHI),                    &
+     &  RWORK(LWT),RPAR,IPAR)
+      DO 520 I=1,NEQ
+         IF(RWORK(I+LWT-1).GT.0.0D0)GO TO 520
+           IDID=-3
+           GO TO 527
+  520 END DO
 !
-!     test for too much accuracy requested.
-      r=ddanrm(neq,rwork(lphi),rwork(lwt),rpar,ipar)*                   &
-     &   100.0d0*uround
-      if(r.le.1.0d0)go to 525
-!     multiply rtol and atol by r and return
-      if(info(2).eq.1)go to 523
-           rtol(1)=r*rtol(1)
-           atol(1)=r*atol(1)
-           idid=-2
-           go to 527
-  523 do 524 i=1,neq
-           rtol(i)=r*rtol(i)
-  524      atol(i)=r*atol(i)
-      idid=-2
-      go to 527
-  525 continue
+!     TEST FOR TOO MUCH ACCURACY REQUESTED.
+      R=DDANRM(NEQ,RWORK(LPHI),RWORK(LWT),RPAR,IPAR)*                   &
+     &   100.0D0*UROUND
+      IF(R.LE.1.0D0)GO TO 525
+!     MULTIPLY RTOL AND ATOL BY R AND RETURN
+      IF(INFO(2).EQ.1)GO TO 523
+           RTOL(1)=R*RTOL(1)
+           ATOL(1)=R*ATOL(1)
+           IDID=-2
+           GO TO 527
+  523 DO 524 I=1,NEQ
+           RTOL(I)=R*RTOL(I)
+  524      ATOL(I)=R*ATOL(I)
+      IDID=-2
+      GO TO 527
+  525 CONTINUE
 !
-!     compute minimum stepsize
-      hmin=4.0d0*uround*max(abs(tn),abs(tout))
+!     COMPUTE MINIMUM STEPSIZE
+      HMIN=4.0D0*UROUND*MAX(ABS(TN),ABS(TOUT))
 !
-!     test h vs. hmax
-      if (info(7) .ne. 0) then
-         rh = abs(h)/rwork(lhmax)
-         if (rh .gt. 1.0d0) h = h/rh
-      endif
+!     TEST H VS. HMAX
+      IF (INFO(7) .NE. 0) THEN
+         RH = ABS(H)/RWORK(LHMAX)
+         IF (RH .GT. 1.0D0) H = H/RH
+      ENDIF
 !
-      call eqn%ddastp(tn,y,yprime,neq,                                      &
-     &   h,rwork(lwt),info(1),idid,rpar,ipar,                   &
-     &   rwork(lphi),rwork(ldelta),rwork(le),                           &
-     &   rwork(lwm),iwork(liwm),                                        &
-     &   rwork(lalpha),rwork(lbeta),rwork(lgamma),                      &
-     &   rwork(lpsi),rwork(lsigma),                                     &
-     &   rwork(lcj),rwork(lcjold),rwork(lhold),                         &
-     &   rwork(ls),hmin,rwork(lround),                                  &
-     &   iwork(lphase),iwork(ljcalc),iwork(lk),                         &
-     &   iwork(lkold),iwork(lns),info(10),ntemp)
-  527 if(idid.lt.0)go to 600
-!
-!--------------------------------------------------------
-!     this block handles the case of a successful return
-!     from ddastp (idid=1).  test for stop conditions.
-!--------------------------------------------------------
-!
-      if(info(4).ne.0)go to 540
-           if(info(3).ne.0)go to 530
-             if((tn-tout)*h.lt.0.0d0)go to 500
-             call ddatrp(tn,tout,y,yprime,neq,                          &
-     &         iwork(lkold),rwork(lphi),rwork(lpsi))
-             idid=3
-             t=tout
-             go to 580
-  530        if((tn-tout)*h.ge.0.0d0)go to 535
-             t=tn
-             idid=1
-             go to 580
-  535        call ddatrp(tn,tout,y,yprime,neq,                          &
-     &         iwork(lkold),rwork(lphi),rwork(lpsi))
-             idid=3
-             t=tout
-             go to 580
-  540 if(info(3).ne.0)go to 550
-      if((tn-tout)*h.lt.0.0d0)go to 542
-         call ddatrp(tn,tout,y,yprime,neq,                              &
-     &     iwork(lkold),rwork(lphi),rwork(lpsi))
-         t=tout
-         idid=3
-         go to 580
-  542 if(abs(tn-tstop).le.100.0d0*uround*                               &
-     &   (abs(tn)+abs(h)))go to 545
-      tnext=tn+h
-      if((tnext-tstop)*h.le.0.0d0)go to 500
-      h=tstop-tn
-      go to 500
-  545 call ddatrp(tn,tstop,y,yprime,neq,                                &
-     &  iwork(lkold),rwork(lphi),rwork(lpsi))
-      idid=2
-      t=tstop
-      go to 580
-  550 if((tn-tout)*h.ge.0.0d0)go to 555
-      if(abs(tn-tstop).le.100.0d0*uround*(abs(tn)+abs(h)))go to 552
-      t=tn
-      idid=1
-      go to 580
-  552 call ddatrp(tn,tstop,y,yprime,neq,                                &
-     &  iwork(lkold),rwork(lphi),rwork(lpsi))
-      idid=2
-      t=tstop
-      go to 580
-  555 call ddatrp(tn,tout,y,yprime,neq,                                 &
-     &   iwork(lkold),rwork(lphi),rwork(lpsi))
-      t=tout
-      idid=3
-      go to 580
+      CALL DDASTP(problem,TN,Y,YPRIME,NEQ,                                  &
+     &   H,RWORK(LWT),INFO(1),IDID,RPAR,IPAR,                           &
+     &   RWORK(LPHI),RWORK(LDELTA),RWORK(LE),                           &
+     &   RWORK(LWM),IWORK(LIWM),                                        &
+     &   RWORK(LALPHA),RWORK(LBETA),RWORK(LGAMMA),                      &
+     &   RWORK(LPSI),RWORK(LSIGMA),                                     &
+     &   RWORK(LCJ),RWORK(LCJOLD),RWORK(LHOLD),                         &
+     &   RWORK(LS),HMIN,RWORK(LROUND),                                  &
+     &   IWORK(LPHASE),IWORK(LJCALC),IWORK(LK),                         &
+     &   IWORK(LKOLD),IWORK(LNS),INFO(10),NTEMP)
+  527 IF(IDID.LT.0)GO TO 600
 !
 !--------------------------------------------------------
-!     all successful returns from ddassl are made from
-!     this block.
+!     THIS BLOCK HANDLES THE CASE OF A SUCCESSFUL RETURN
+!     FROM DDASTP (IDID=1).  TEST FOR STOP CONDITIONS.
 !--------------------------------------------------------
 !
-  580 continue
-      rwork(ltn)=tn
-      rwork(lh)=h
-      return
+      IF(INFO(4).NE.0)GO TO 540
+           IF(INFO(3).NE.0)GO TO 530
+             IF((TN-TOUT)*H.LT.0.0D0)GO TO 500
+             CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,                          &
+     &         IWORK(LKOLD),RWORK(LPHI),RWORK(LPSI))
+             IDID=3
+             T=TOUT
+             GO TO 580
+  530        IF((TN-TOUT)*H.GE.0.0D0)GO TO 535
+             T=TN
+             IDID=1
+             GO TO 580
+  535        CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,                          &
+     &         IWORK(LKOLD),RWORK(LPHI),RWORK(LPSI))
+             IDID=3
+             T=TOUT
+             GO TO 580
+  540 IF(INFO(3).NE.0)GO TO 550
+      IF((TN-TOUT)*H.LT.0.0D0)GO TO 542
+         CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,                              &
+     &     IWORK(LKOLD),RWORK(LPHI),RWORK(LPSI))
+         T=TOUT
+         IDID=3
+         GO TO 580
+  542 IF(ABS(TN-TSTOP).LE.100.0D0*UROUND*                               &
+     &   (ABS(TN)+ABS(H)))GO TO 545
+      TNEXT=TN+H
+      IF((TNEXT-TSTOP)*H.LE.0.0D0)GO TO 500
+      H=TSTOP-TN
+      GO TO 500
+  545 CALL DDATRP(TN,TSTOP,Y,YPRIME,NEQ,                                &
+     &  IWORK(LKOLD),RWORK(LPHI),RWORK(LPSI))
+      IDID=2
+      T=TSTOP
+      GO TO 580
+  550 IF((TN-TOUT)*H.GE.0.0D0)GO TO 555
+      IF(ABS(TN-TSTOP).LE.100.0D0*UROUND*(ABS(TN)+ABS(H)))GO TO 552
+      T=TN
+      IDID=1
+      GO TO 580
+  552 CALL DDATRP(TN,TSTOP,Y,YPRIME,NEQ,                                &
+     &  IWORK(LKOLD),RWORK(LPHI),RWORK(LPSI))
+      IDID=2
+      T=TSTOP
+      GO TO 580
+  555 CALL DDATRP(TN,TOUT,Y,YPRIME,NEQ,                                 &
+     &   IWORK(LKOLD),RWORK(LPHI),RWORK(LPSI))
+      T=TOUT
+      IDID=3
+      GO TO 580
+!
+!--------------------------------------------------------
+!     ALL SUCCESSFUL RETURNS FROM DDASSL ARE MADE FROM
+!     THIS BLOCK.
+!--------------------------------------------------------
+!
+  580 CONTINUE
+      RWORK(LTN)=TN
+      RWORK(LH)=H
+      RETURN
 !
 !-----------------------------------------------------------------------
-!     this block handles all unsuccessful
-!     returns other than for illegal input.
+!     THIS BLOCK HANDLES ALL UNSUCCESSFUL
+!     RETURNS OTHER THAN FOR ILLEGAL INPUT.
 !-----------------------------------------------------------------------
 !
-  600 continue
-      itemp=-idid
-      go to (610,620,630,690,690,640,650,660,670,675,                   &
-     &  680,685), itemp
+  600 CONTINUE
+      ITEMP=-IDID
+      GO TO (610,620,630,690,690,640,650,660,670,675,                   &
+     &  680,685), ITEMP
 !
-!     the maximum number of steps was taken before
-!     reaching tout
-  610 write (xern3, '(1p,d15.6)') tn
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at current t = ' // xern3 // ' 500 steps taken on this ' //   &
-     &   'call before reaching tout', idid, 1)
-      go to 690
+!     THE MAXIMUM NUMBER OF STEPS WAS TAKEN BEFORE
+!     REACHING TOUT
+  610 WRITE (XERN3, '(1P,D15.6)') TN
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT CURRENT T = ' // XERN3 // ' 500 STEPS TAKEN ON THIS ' //   &
+     &   'CALL BEFORE REACHING TOUT', IDID, 1)
+      GO TO 690
 !
-!     too much accuracy for machine precision
-  620 write (xern3, '(1p,d15.6)') tn
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' too much accuracy requested for ' //   &
-     &   'precision of machine. rtol and atol were increased to ' //    &
-     &   'appropriate values', idid, 1)
-      go to 690
+!     TOO MUCH ACCURACY FOR MACHINE PRECISION
+  620 WRITE (XERN3, '(1P,D15.6)') TN
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' TOO MUCH ACCURACY REQUESTED FOR ' //   &
+     &   'PRECISION OF MACHINE. RTOL AND ATOL WERE INCREASED TO ' //    &
+     &   'APPROPRIATE VALUES', IDID, 1)
+      GO TO 690
 !
-!     wt(i) .le. 0.0 for some i (not at start of problem)
-  630 write (xern3, '(1p,d15.6)') tn
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' some element of wt has become .le. ' //&
-     &   '0.0', idid, 1)
-      go to 690
+!     WT(I) .LE. 0.0 FOR SOME I (NOT AT START OF PROBLEM)
+  630 WRITE (XERN3, '(1P,D15.6)') TN
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' SOME ELEMENT OF WT HAS BECOME .LE. ' //&
+     &   '0.0', IDID, 1)
+      GO TO 690
 !
-!     error test failed repeatedly or with h=hmin
-  640 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') h
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' the error test failed repeatedly or with abs(h)=hmin',       &
-     &   idid, 1)
-      go to 690
+!     ERROR TEST FAILED REPEATEDLY OR WITH H=HMIN
+  640 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') H
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' THE ERROR TEST FAILED REPEATEDLY OR WITH ABS(H)=HMIN',       &
+     &   IDID, 1)
+      GO TO 690
 !
-!     corrector convergence failed repeatedly or with h=hmin
-  650 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') h
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' the corrector failed to converge repeatedly or with ' //     &
-     &   'abs(h)=hmin', idid, 1)
-      go to 690
+!     CORRECTOR CONVERGENCE FAILED REPEATEDLY OR WITH H=HMIN
+  650 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') H
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' THE CORRECTOR FAILED TO CONVERGE REPEATEDLY OR WITH ' //     &
+     &   'ABS(H)=HMIN', IDID, 1)
+      GO TO 690
 !
-!     the iteration matrix is singular
-  660 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') h
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' the iteration matrix is singular', idid, 1)
-      go to 690
+!     THE ITERATION MATRIX IS SINGULAR
+  660 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') H
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' THE ITERATION MATRIX IS SINGULAR', IDID, 1)
+      GO TO 690
 !
-!     corrector failure preceded by error test failures.
-  670 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') h
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' the corrector could not converge.  also, the error test ' // &
-     &   'failed repeatedly.', idid, 1)
-      go to 690
+!     CORRECTOR FAILURE PRECEDED BY ERROR TEST FAILURES.
+  670 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') H
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' THE CORRECTOR COULD NOT CONVERGE.  ALSO, THE ERROR TEST ' // &
+     &   'FAILED REPEATEDLY.', IDID, 1)
+      GO TO 690
 !
-!     corrector failure because ires = -1
-  675 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') h
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' the corrector could not converge because ires was equal ' // &
-     &   'to minus one', idid, 1)
-      go to 690
+!     CORRECTOR FAILURE BECAUSE IRES = -1
+  675 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') H
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' THE CORRECTOR COULD NOT CONVERGE BECAUSE IRES WAS EQUAL ' // &
+     &   'TO MINUS ONE', IDID, 1)
+      GO TO 690
 !
-!     failure because ires = -2
-  680 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') h
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' ires was equal to minus two', idid, 1)
-      go to 690
+!     FAILURE BECAUSE IRES = -2
+  680 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') H
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' IRES WAS EQUAL TO MINUS TWO', IDID, 1)
+      GO TO 690
 !
-!     failed to compute initial yprime
-  685 write (xern3, '(1p,d15.6)') tn
-      write (xern4, '(1p,d15.6)') ho
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'at t = ' // xern3 // ' and stepsize h = ' // xern4 //         &
-     &   ' the initial yprime could not be computed', idid, 1)
-      go to 690
+!     FAILED TO COMPUTE INITIAL YPRIME
+  685 WRITE (XERN3, '(1P,D15.6)') TN
+      WRITE (XERN4, '(1P,D15.6)') HO
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'AT T = ' // XERN3 // ' AND STEPSIZE H = ' // XERN4 //         &
+     &   ' THE INITIAL YPRIME COULD NOT BE COMPUTED', IDID, 1)
+      GO TO 690
 !
-  690 continue
-      info(1)=-1
-      t=tn
-      rwork(ltn)=tn
-      rwork(lh)=h
-      return
-!
-!-----------------------------------------------------------------------
-!     this block handles all error returns due
-!     to illegal input, as detected before calling
-!     ddastp. first the error message routine is
-!     called. if this happens twice in
-!     succession, execution is terminated
+  690 CONTINUE
+      INFO(1)=-1
+      T=TN
+      RWORK(LTN)=TN
+      RWORK(LH)=H
+      RETURN
 !
 !-----------------------------------------------------------------------
-  701 call xermsg ('slatec', 'ddassl',                                  &
-     &   'some element of info vector is not zero or one', 1, 1)
-      go to 750
+!     THIS BLOCK HANDLES ALL ERROR RETURNS DUE
+!     TO ILLEGAL INPUT, AS DETECTED BEFORE CALLING
+!     DDASTP. FIRST THE ERROR MESSAGE ROUTINE IS
+!     CALLED. IF THIS HAPPENS TWICE IN
+!     SUCCESSION, EXECUTION IS TERMINATED
 !
-  702 write (xern1, '(i8)') neq
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'neq = ' // xern1 // ' .le. 0', 2, 1)
-      go to 750
+!-----------------------------------------------------------------------
+  701 CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'SOME ELEMENT OF INFO VECTOR IS NOT ZERO OR ONE', 1, 1)
+      GO TO 750
 !
-  703 write (xern1, '(i8)') mxord
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'maxord = ' // xern1 // ' not in range', 3, 1)
-      go to 750
+  702 WRITE (XERN1, '(I8)') NEQ
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'NEQ = ' // XERN1 // ' .LE. 0', 2, 1)
+      GO TO 750
 !
-  704 write (xern1, '(i8)') lenrw
-      write (xern2, '(i8)') lrw
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'rwork length needed, lenrw = ' // xern1 //                    &
-     &   ', exceeds lrw = ' // xern2, 4, 1)
-      go to 750
+  703 WRITE (XERN1, '(I8)') MXORD
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'MAXORD = ' // XERN1 // ' NOT IN RANGE', 3, 1)
+      GO TO 750
 !
-  705 write (xern1, '(i8)') leniw
-      write (xern2, '(i8)') liw
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'iwork length needed, leniw = ' // xern1 //                    &
-     &   ', exceeds liw = ' // xern2, 5, 1)
-      go to 750
+  704 WRITE (XERN1, '(I8)') LENRW
+      WRITE (XERN2, '(I8)') LRW
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'RWORK LENGTH NEEDED, LENRW = ' // XERN1 //                    &
+     &   ', EXCEEDS LRW = ' // XERN2, 4, 1)
+      GO TO 750
 !
-  706 call xermsg ('slatec', 'ddassl',                                  &
-     &   'some element of rtol is .lt. 0', 6, 1)
-      go to 750
+  705 WRITE (XERN1, '(I8)') LENIW
+      WRITE (XERN2, '(I8)') LIW
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'IWORK LENGTH NEEDED, LENIW = ' // XERN1 //                    &
+     &   ', EXCEEDS LIW = ' // XERN2, 5, 1)
+      GO TO 750
 !
-  707 call xermsg ('slatec', 'ddassl',                                  &
-     &   'some element of atol is .lt. 0', 7, 1)
-      go to 750
+  706 CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'SOME ELEMENT OF RTOL IS .LT. 0', 6, 1)
+      GO TO 750
 !
-  708 call xermsg ('slatec', 'ddassl',                                  &
-     &   'all elements of rtol and atol are zero', 8, 1)
-      go to 750
+  707 CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'SOME ELEMENT OF ATOL IS .LT. 0', 7, 1)
+      GO TO 750
 !
-  709 write (xern3, '(1p,d15.6)') tstop
-      write (xern4, '(1p,d15.6)') tout
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'info(4) = 1 and tstop = ' // xern3 // ' behind tout = ' //    &
-     &   xern4, 9, 1)
-      go to 750
+  708 CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'ALL ELEMENTS OF RTOL AND ATOL ARE ZERO', 8, 1)
+      GO TO 750
 !
-  710 write (xern3, '(1p,d15.6)') hmax
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'hmax = ' // xern3 // ' .lt. 0.0', 10, 1)
-      go to 750
+  709 WRITE (XERN3, '(1P,D15.6)') TSTOP
+      WRITE (XERN4, '(1P,D15.6)') TOUT
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'INFO(4) = 1 AND TSTOP = ' // XERN3 // ' BEHIND TOUT = ' //    &
+     &   XERN4, 9, 1)
+      GO TO 750
 !
-  711 write (xern3, '(1p,d15.6)') tout
-      write (xern4, '(1p,d15.6)') t
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'tout = ' // xern3 // ' behind t = ' // xern4, 11, 1)
-      go to 750
+  710 WRITE (XERN3, '(1P,D15.6)') HMAX
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'HMAX = ' // XERN3 // ' .LT. 0.0', 10, 1)
+      GO TO 750
 !
-  712 call xermsg ('slatec', 'ddassl',                                  &
-     &   'info(8)=1 and h0=0.0', 12, 1)
-      go to 750
+  711 WRITE (XERN3, '(1P,D15.6)') TOUT
+      WRITE (XERN4, '(1P,D15.6)') T
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'TOUT = ' // XERN3 // ' BEHIND T = ' // XERN4, 11, 1)
+      GO TO 750
 !
-  713 call xermsg ('slatec', 'ddassl',                                  &
-     &   'some element of wt is .le. 0.0', 13, 1)
-      go to 750
+  712 CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'INFO(8)=1 AND H0=0.0', 12, 1)
+      GO TO 750
 !
-  714 write (xern3, '(1p,d15.6)') tout
-      write (xern4, '(1p,d15.6)') t
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'tout = ' // xern3 // ' too close to t = ' // xern4 //         &
-     &   ' to start integration', 14, 1)
-      go to 750
+  713 CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'SOME ELEMENT OF WT IS .LE. 0.0', 13, 1)
+      GO TO 750
 !
-  715 write (xern3, '(1p,d15.6)') tstop
-      write (xern4, '(1p,d15.6)') t
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'info(4)=1 and tstop = ' // xern3 // ' behind t = ' // xern4,  &
+  714 WRITE (XERN3, '(1P,D15.6)') TOUT
+      WRITE (XERN4, '(1P,D15.6)') T
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'TOUT = ' // XERN3 // ' TOO CLOSE TO T = ' // XERN4 //         &
+     &   ' TO START INTEGRATION', 14, 1)
+      GO TO 750
+!
+  715 WRITE (XERN3, '(1P,D15.6)') TSTOP
+      WRITE (XERN4, '(1P,D15.6)') T
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'INFO(4)=1 AND TSTOP = ' // XERN3 // ' BEHIND T = ' // XERN4,  &
      &   15, 1)
-      go to 750
+      GO TO 750
 !
-  717 write (xern1, '(i8)') iwork(lml)
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'ml = ' // xern1 // ' illegal.  either .lt. 0 or .gt. neq',    &
+  717 WRITE (XERN1, '(I8)') IWORK(LML)
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'ML = ' // XERN1 // ' ILLEGAL.  EITHER .LT. 0 OR .GT. NEQ',    &
      &   17, 1)
-      go to 750
+      GO TO 750
 !
-  718 write (xern1, '(i8)') iwork(lmu)
-      call xermsg ('slatec', 'ddassl',                                  &
-     &   'mu = ' // xern1 // ' illegal.  either .lt. 0 or .gt. neq',    &
+  718 WRITE (XERN1, '(I8)') IWORK(LMU)
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &   'MU = ' // XERN1 // ' ILLEGAL.  EITHER .LT. 0 OR .GT. NEQ',    &
      &   18, 1)
-      go to 750
+      GO TO 750
 !
-  719 write (xern3, '(1p,d15.6)') tout
-      call xermsg ('slatec', 'ddassl',                                  &
-     &  'tout = t = ' // xern3, 19, 1)
-      go to 750
+  719 WRITE (XERN3, '(1P,D15.6)') TOUT
+      CALL XERMSG ('SLATEC', 'DDASSL',                                  &
+     &  'TOUT = T = ' // XERN3, 19, 1)
+      GO TO 750
 !
-  750 idid=-33
-      if(info(1).eq.-1) then
-         call xermsg ('slatec', 'ddassl',                               &
-     &      'repeated occurrences of illegal input$$' //                &
-     &      'run terminated. apparent infinite loop', -999, 2)
-      endif
+  750 IDID=-33
+      IF(INFO(1).EQ.-1) THEN
+         CALL XERMSG ('SLATEC', 'DDASSL',                               &
+     &      'REPEATED OCCURRENCES OF ILLEGAL INPUT$$' //                &
+     &      'RUN TERMINATED. APPARENT INFINITE LOOP', -999, 2)
+      ENDIF
 !
-      info(1)=-1
-      return
-!-----------end of subroutine ddassl------------------------------------
-      end subroutine ddassl
-!deck ddaini
-      subroutine ddaini (eqn, x, y, yprime, neq, h, wt, idid, rpar,&
-     &   ipar, phi, delta, e, wm, iwm, hmin, uround, nonneg, ntemp)
-!***begin prologue  ddaini
-!***subsidiary
-!***purpose  initialization routine for ddassl.
-!***library   slatec (dassl)
-!***type      double precision (sdaini-s, ddaini-d)
-!***author  petzold, linda r., (llnl)
-!***description
+      INFO(1)=-1
+      RETURN
+!-----------END OF SUBROUTINE DDASSL------------------------------------
+      END subroutine ddassl
+!DECK DDAINI
+      SUBROUTINE DDAINI (problem, X, Y, YPRIME, NEQ, H, WT, IDID, RPAR,&
+     &   IPAR, PHI, DELTA, E, WM, IWM, HMIN, UROUND, NONNEG, NTEMP)
+!***BEGIN PROLOGUE  DDAINI
+!***SUBSIDIARY
+!***PURPOSE  Initialization routine for DDASSL.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDAINI-S, DDAINI-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------
-!     ddaini takes one step of size h or smaller
-!     with the backward euler method, to
-!     find yprime.  x and y are updated to be consistent with the
-!     new step.  a modified damped newton iteration is used to
-!     solve the corrector iteration.
+!     DDAINI TAKES ONE STEP OF SIZE H OR SMALLER
+!     WITH THE BACKWARD EULER METHOD, TO
+!     FIND YPRIME.  X AND Y ARE UPDATED TO BE CONSISTENT WITH THE
+!     NEW STEP.  A MODIFIED DAMPED NEWTON ITERATION IS USED TO
+!     SOLVE THE CORRECTOR ITERATION.
 !
-!     the initial guess for yprime is used in the
-!     prediction, and in forming the iteration
-!     matrix, but is not involved in the
-!     error test. this may have trouble
-!     converging if the initial guess is no
-!     good, or if g(x,y,yprime) depends
-!     nonlinearly on yprime.
+!     THE INITIAL GUESS FOR YPRIME IS USED IN THE
+!     PREDICTION, AND IN FORMING THE ITERATION
+!     MATRIX, BUT IS NOT INVOLVED IN THE
+!     ERROR TEST. THIS MAY HAVE TROUBLE
+!     CONVERGING IF THE INITIAL GUESS IS NO
+!     GOOD, OR IF G(X,Y,YPRIME) DEPENDS
+!     NONLINEARLY ON YPRIME.
 !
-!     the parameters represent:
-!     x --         independent variable
-!     y --         solution vector at x
-!     yprime --    derivative of solution vector
-!     neq --       number of equations
-!     h --         stepsize. imder may use a stepsize
-!                  smaller than h.
-!     wt --        vector of weights for error
-!                  criterion
-!     idid --      completion code with the following meanings
-!                  idid= 1 -- yprime was found successfully
-!                  idid=-12 -- ddaini failed to find yprime
-!     rpar,ipar -- real and integer parameter arrays
-!                  that are not altered by ddaini
-!     phi --       work space for ddaini
-!     delta,e --   work space for ddaini
-!     wm,iwm --    real and integer arrays storing
-!                  matrix information
+!     THE PARAMETERS REPRESENT:
+!     X --         INDEPENDENT VARIABLE
+!     Y --         SOLUTION VECTOR AT X
+!     YPRIME --    DERIVATIVE OF SOLUTION VECTOR
+!     NEQ --       NUMBER OF EQUATIONS
+!     H --         STEPSIZE. IMDER MAY USE A STEPSIZE
+!                  SMALLER THAN H.
+!     WT --        VECTOR OF WEIGHTS FOR ERROR
+!                  CRITERION
+!     IDID --      COMPLETION CODE WITH THE FOLLOWING MEANINGS
+!                  IDID= 1 -- YPRIME WAS FOUND SUCCESSFULLY
+!                  IDID=-12 -- DDAINI FAILED TO FIND YPRIME
+!     RPAR,IPAR -- REAL AND INTEGER PARAMETER ARRAYS
+!                  THAT ARE NOT ALTERED BY DDAINI
+!     PHI --       WORK SPACE FOR DDAINI
+!     DELTA,E --   WORK SPACE FOR DDAINI
+!     WM,IWM --    REAL AND INTEGER ARRAYS STORING
+!                  MATRIX INFORMATION
 !
 !-----------------------------------------------------------------
-!***routines called  ddajac, ddanrm, ddaslv
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!   901030  minor corrections to declarations.  (fnf)
-!***end prologue  ddaini
+!***ROUTINES CALLED  DDAJAC, DDANRM, DDASLV
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!   901030  Minor corrections to declarations.  (FNF)
+!***END PROLOGUE  DDAINI
 !
-      integer  neq, idid, ipar(*), iwm(*), nonneg, ntemp
-      double precision                                                  &
-     &   x, y(*), yprime(*), h, wt(*), rpar(*), phi(neq,*), delta(*),   &
-     &   e(*), wm(*), hmin, uround
-      class(problem_ddassl) :: eqn
-
-      integer  i, ier, ires, jcalc, lnje, lnre, m, maxit, mjac, ncf,    &
-     &   nef, nsf
-      double precision                                                  &
-     &   cj, damp, delnrm, err, oldnrm, r, rate, s, xold, ynorm
-      logical  convgd
+      INTEGER  NEQ, IDID, IPAR(*), IWM(*), NONNEG, NTEMP
+      DOUBLE PRECISION                                                  &
+     &   X, Y(*), YPRIME(*), H, WT(*), RPAR(*), PHI(NEQ,*), DELTA(*),   &
+     &   E(*), WM(*), HMIN, UROUND
+      class(problem_ddassl), target :: problem
 !
-      parameter (lnre=12)
-      parameter (lnje=13)
+      INTEGER  I, IER, IRES, JCALC, LNJE, LNRE, M, MAXIT, MJAC, NCF,    &
+     &   NEF, NSF
+      DOUBLE PRECISION                                                  &
+     &   CJ, DAMP, DELNRM, ERR, OLDNRM, R, RATE, S, XOLD, YNORM
+      LOGICAL  CONVGD
 !
-      data maxit/10/,mjac/5/
-      data damp/0.75d0/
+      PARAMETER (LNRE=12)
+      PARAMETER (LNJE=13)
+!
+      DATA MAXIT/10/,MJAC/5/
+      DATA DAMP/0.75D0/
 !
 !
 !---------------------------------------------------
-!     block 1.
-!     initializations.
+!     BLOCK 1.
+!     INITIALIZATIONS.
 !---------------------------------------------------
 !
-!***first executable statement  ddaini
-      idid=1
-      nef=0
-      ncf=0
-      nsf=0
-      xold=x
-      ynorm=ddanrm(neq,y,wt,rpar,ipar)
+!***FIRST EXECUTABLE STATEMENT  DDAINI
+      IDID=1
+      NEF=0
+      NCF=0
+      NSF=0
+      XOLD=X
+      YNORM=DDANRM(NEQ,Y,WT,RPAR,IPAR)
 !
-!     save y and yprime in phi
-      do 100 i=1,neq
-         phi(i,1)=y(i)
-  100    phi(i,2)=yprime(i)
+!     SAVE Y AND YPRIME IN PHI
+      DO 100 I=1,NEQ
+         PHI(I,1)=Y(I)
+  100    PHI(I,2)=YPRIME(I)
 !
 !
 !----------------------------------------------------
-!     block 2.
-!     do one backward euler step.
+!     BLOCK 2.
+!     DO ONE BACKWARD EULER STEP.
 !----------------------------------------------------
 !
-!     set up for start of corrector iteration
-  200 cj=1.0d0/h
-      x=x+h
+!     SET UP FOR START OF CORRECTOR ITERATION
+  200 CJ=1.0D0/H
+      X=X+H
 !
-!     predict solution and derivative
-      do 250 i=1,neq
-  250   y(i)=y(i)+h*yprime(i)
+!     PREDICT SOLUTION AND DERIVATIVE
+      DO 250 I=1,NEQ
+  250   Y(I)=Y(I)+H*YPRIME(I)
 !
-      jcalc=-1
-      m=0
-      convgd=.true.
-!
-!
-!     corrector loop.
-  300 iwm(lnre)=iwm(lnre)+1
-      ires=0
-!
-      call eqn%res(x,y,yprime,delta,ires,rpar,ipar)
-      if (ires.lt.0) go to 430
+      JCALC=-1
+      M=0
+      CONVGD=.TRUE.
 !
 !
-!     evaluate the iteration matrix
-      if (jcalc.ne.-1) go to 310
-      iwm(lnje)=iwm(lnje)+1
-      jcalc=0
-      call eqn%ddajac(neq,x,y,yprime,delta,cj,h,                            &
-     &   ier,wt,e,wm,iwm,ires,                                      &
-     &   uround,rpar,ipar,ntemp)
+!     CORRECTOR LOOP.
+  300 IWM(LNRE)=IWM(LNRE)+1
+      IRES=0
 !
-      s=1000000.d0
-      if (ires.lt.0) go to 430
-      if (ier.ne.0) go to 430
-      nsf=0
+      CALL problem%res(X,Y,YPRIME,DELTA,IRES,RPAR,IPAR)
+      IF (IRES.LT.0) GO TO 430
 !
 !
+!     EVALUATE THE ITERATION MATRIX
+      IF (JCALC.NE.-1) GO TO 310
+      IWM(LNJE)=IWM(LNJE)+1
+      JCALC=0
+      CALL DDAJAC(problem,NEQ,X,Y,YPRIME,DELTA,CJ,H,                        &
+     &   IER,WT,E,WM,IWM,IRES,                                          &
+     &   UROUND,RPAR,IPAR,NTEMP)
 !
-!     multiply residual by damping factor
-  310 continue
-      do 320 i=1,neq
-  320    delta(i)=delta(i)*damp
-!
-!     compute a new iterate (back substitution)
-!     store the correction in delta
-!
-      call ddaslv(neq,delta,wm,iwm)
-!
-!     update y and yprime
-      do 330 i=1,neq
-         y(i)=y(i)-delta(i)
-  330    yprime(i)=yprime(i)-cj*delta(i)
-!
-!     test for convergence of the iteration.
-!
-      delnrm=ddanrm(neq,delta,wt,rpar,ipar)
-      if (delnrm.le.100.d0*uround*ynorm)                                &
-     &   go to 400
-!
-      if (m.gt.0) go to 340
-         oldnrm=delnrm
-         go to 350
-!
-  340 rate=(delnrm/oldnrm)**(1.0d0/m)
-      if (rate.gt.0.90d0) go to 430
-      s=rate/(1.0d0-rate)
-!
-  350 if (s*delnrm .le. 0.33d0) go to 400
+      S=1000000.D0
+      IF (IRES.LT.0) GO TO 430
+      IF (IER.NE.0) GO TO 430
+      NSF=0
 !
 !
-!     the corrector has not yet converged. update
-!     m and and test whether the maximum
-!     number of iterations have been tried.
-!     every mjac iterations, get a new
-!     iteration matrix.
 !
-      m=m+1
-      if (m.ge.maxit) go to 430
+!     MULTIPLY RESIDUAL BY DAMPING FACTOR
+  310 CONTINUE
+      DO 320 I=1,NEQ
+  320    DELTA(I)=DELTA(I)*DAMP
 !
-      if ((m/mjac)*mjac.eq.m) jcalc=-1
-      go to 300
+!     COMPUTE A NEW ITERATE (BACK SUBSTITUTION)
+!     STORE THE CORRECTION IN DELTA
+!
+      CALL DDASLV(NEQ,DELTA,WM,IWM)
+!
+!     UPDATE Y AND YPRIME
+      DO 330 I=1,NEQ
+         Y(I)=Y(I)-DELTA(I)
+  330    YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+!
+!     TEST FOR CONVERGENCE OF THE ITERATION.
+!
+      DELNRM=DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      IF (DELNRM.LE.100.D0*UROUND*YNORM)                                &
+     &   GO TO 400
+!
+      IF (M.GT.0) GO TO 340
+         OLDNRM=DELNRM
+         GO TO 350
+!
+  340 RATE=(DELNRM/OLDNRM)**(1.0D0/M)
+      IF (RATE.GT.0.90D0) GO TO 430
+      S=RATE/(1.0D0-RATE)
+!
+  350 IF (S*DELNRM .LE. 0.33D0) GO TO 400
 !
 !
-!     the iteration has converged.
-!     check nonnegativity constraints
-  400 if (nonneg.eq.0) go to 450
-      do 410 i=1,neq
-  410    delta(i)=min(y(i),0.0d0)
+!     THE CORRECTOR HAS NOT YET CONVERGED. UPDATE
+!     M AND AND TEST WHETHER THE MAXIMUM
+!     NUMBER OF ITERATIONS HAVE BEEN TRIED.
+!     EVERY MJAC ITERATIONS, GET A NEW
+!     ITERATION MATRIX.
 !
-      delnrm=ddanrm(neq,delta,wt,rpar,ipar)
-      if (delnrm.gt.0.33d0) go to 430
+      M=M+1
+      IF (M.GE.MAXIT) GO TO 430
 !
-      do 420 i=1,neq
-         y(i)=y(i)-delta(i)
-  420    yprime(i)=yprime(i)-cj*delta(i)
-      go to 450
+      IF ((M/MJAC)*MJAC.EQ.M) JCALC=-1
+      GO TO 300
 !
 !
-!     exits from corrector loop.
-  430 convgd=.false.
-  450 if (.not.convgd) go to 600
+!     THE ITERATION HAS CONVERGED.
+!     CHECK NONNEGATIVITY CONSTRAINTS
+  400 IF (NONNEG.EQ.0) GO TO 450
+      DO 410 I=1,NEQ
+  410    DELTA(I)=MIN(Y(I),0.0D0)
+!
+      DELNRM=DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      IF (DELNRM.GT.0.33D0) GO TO 430
+!
+      DO 420 I=1,NEQ
+         Y(I)=Y(I)-DELTA(I)
+  420    YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+      GO TO 450
+!
+!
+!     EXITS FROM CORRECTOR LOOP.
+  430 CONVGD=.FALSE.
+  450 IF (.NOT.CONVGD) GO TO 600
 !
 !
 !
 !-----------------------------------------------------
-!     block 3.
-!     the corrector iteration converged.
-!     do error test.
+!     BLOCK 3.
+!     THE CORRECTOR ITERATION CONVERGED.
+!     DO ERROR TEST.
 !-----------------------------------------------------
 !
-      do 510 i=1,neq
-  510    e(i)=y(i)-phi(i,1)
-      err=ddanrm(neq,e,wt,rpar,ipar)
+      DO 510 I=1,NEQ
+  510    E(I)=Y(I)-PHI(I,1)
+      ERR=DDANRM(NEQ,E,WT,RPAR,IPAR)
 !
-      if (err.le.1.0d0) return
+      IF (ERR.LE.1.0D0) RETURN
 !
 !
 !
 !--------------------------------------------------------
-!     block 4.
-!     the backward euler step failed. restore x, y
-!     and yprime to their original values.
-!     reduce stepsize and try again, if
-!     possible.
+!     BLOCK 4.
+!     THE BACKWARD EULER STEP FAILED. RESTORE X, Y
+!     AND YPRIME TO THEIR ORIGINAL VALUES.
+!     REDUCE STEPSIZE AND TRY AGAIN, IF
+!     POSSIBLE.
 !---------------------------------------------------------
 !
-  600 continue
-      x = xold
-      do 610 i=1,neq
-         y(i)=phi(i,1)
-  610    yprime(i)=phi(i,2)
+  600 CONTINUE
+      X = XOLD
+      DO 610 I=1,NEQ
+         Y(I)=PHI(I,1)
+  610    YPRIME(I)=PHI(I,2)
 !
-      if (convgd) go to 640
-      if (ier.eq.0) go to 620
-         nsf=nsf+1
-         h=h*0.25d0
-         if (nsf.lt.3.and.abs(h).ge.hmin) go to 690
-         idid=-12
-         return
-  620 if (ires.gt.-2) go to 630
-         idid=-12
-         return
-  630 ncf=ncf+1
-      h=h*0.25d0
-      if (ncf.lt.10.and.abs(h).ge.hmin) go to 690
-         idid=-12
-         return
+      IF (CONVGD) GO TO 640
+      IF (IER.EQ.0) GO TO 620
+         NSF=NSF+1
+         H=H*0.25D0
+         IF (NSF.LT.3.AND.ABS(H).GE.HMIN) GO TO 690
+         IDID=-12
+         RETURN
+  620 IF (IRES.GT.-2) GO TO 630
+         IDID=-12
+         RETURN
+  630 NCF=NCF+1
+      H=H*0.25D0
+      IF (NCF.LT.10.AND.ABS(H).GE.HMIN) GO TO 690
+         IDID=-12
+         RETURN
 !
-  640 nef=nef+1
-      r=0.90d0/(2.0d0*err+0.0001d0)
-      r=max(0.1d0,min(0.5d0,r))
-      h=h*r
-      if (abs(h).ge.hmin.and.nef.lt.10) go to 690
-         idid=-12
-         return
-  690    go to 200
+  640 NEF=NEF+1
+      R=0.90D0/(2.0D0*ERR+0.0001D0)
+      R=MAX(0.1D0,MIN(0.5D0,R))
+      H=H*R
+      IF (ABS(H).GE.HMIN.AND.NEF.LT.10) GO TO 690
+         IDID=-12
+         RETURN
+  690    GO TO 200
 !
-!-------------end of subroutine ddaini----------------------
-      end subroutine ddaini
-!deck ddajac
-      subroutine ddajac (eqn, neq, x, y, yprime, delta, cj, h, ier, wt, e,   &
-     &   wm, iwm, ires, uround, rpar, ipar, ntemp)
-!***begin prologue  ddajac
-!***subsidiary
-!***purpose  compute the iteration matrix for ddassl and form the
-!            lu-decomposition.
-!***library   slatec (dassl)
-!***type      double precision (sdajac-s, ddajac-d)
-!***author  petzold, linda r., (llnl)
-!***description
+!-------------END OF SUBROUTINE DDAINI----------------------
+      END subroutine ddaini
+!DECK DDAJAC
+      SUBROUTINE DDAJAC (problem, NEQ, X, Y, YPRIME, DELTA, CJ, H, &
+           &IER, WT, E, WM, IWM, IRES, UROUND, RPAR, IPAR, NTEMP)
+!***BEGIN PROLOGUE  DDAJAC
+!***SUBSIDIARY
+!***PURPOSE  Compute the iteration matrix for DDASSL and form the
+!            LU-decomposition.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDAJAC-S, DDAJAC-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------------
-!     this routine computes the iteration matrix
-!     pd=dg/dy+cj*dg/dyprime (where g(x,y,yprime)=0).
-!     here pd is computed by the user-supplied
-!     routine jac if iwm(mtype) is 1 or 4, and
-!     it is computed by numerical finite differencing
-!     if iwm(mtype)is 2 or 5
-!     the parameters have the following meanings.
-!     y        = array containing predicted values
-!     yprime   = array containing predicted derivatives
-!     delta    = residual evaluated at (x,y,yprime)
-!                (used only if iwm(mtype)=2 or 5)
-!     cj       = scalar parameter defining iteration matrix
-!     h        = current stepsize in integration
-!     ier      = variable which is .ne. 0
-!                if iteration matrix is singular,
-!                and 0 otherwise.
-!     wt       = vector of weights for computing norms
-!     e        = work space (temporary) of length neq
-!     wm       = real work space for matrices. on
-!                output it contains the lu decomposition
-!                of the iteration matrix.
-!     iwm      = integer work space containing
-!                matrix information
-!     res      = name of the external user-supplied routine
-!                to evaluate the residual function g(x,y,yprime)
-!     ires     = flag which is equal to zero if no illegal values
-!                in res, and less than zero otherwise.  (if ires
-!                is less than zero, the matrix was not completed)
-!                in this case (if ires .lt. 0), then ier = 0.
-!     uround   = the unit roundoff error of the machine being used.
-!     jac      = name of the external user-supplied routine
-!                to evaluate the iteration matrix (this routine
-!                is only used if iwm(mtype) is 1 or 4)
+!     THIS ROUTINE COMPUTES THE ITERATION MATRIX
+!     PD=DG/DY+CJ*DG/DYPRIME (WHERE G(X,Y,YPRIME)=0).
+!     HERE PD IS COMPUTED BY THE USER-SUPPLIED
+!     ROUTINE JAC IF IWM(MTYPE) IS 1 OR 4, AND
+!     IT IS COMPUTED BY NUMERICAL FINITE DIFFERENCING
+!     IF IWM(MTYPE)IS 2 OR 5
+!     THE PARAMETERS HAVE THE FOLLOWING MEANINGS.
+!     Y        = ARRAY CONTAINING PREDICTED VALUES
+!     YPRIME   = ARRAY CONTAINING PREDICTED DERIVATIVES
+!     DELTA    = RESIDUAL EVALUATED AT (X,Y,YPRIME)
+!                (USED ONLY IF IWM(MTYPE)=2 OR 5)
+!     CJ       = SCALAR PARAMETER DEFINING ITERATION MATRIX
+!     H        = CURRENT STEPSIZE IN INTEGRATION
+!     IER      = VARIABLE WHICH IS .NE. 0
+!                IF ITERATION MATRIX IS SINGULAR,
+!                AND 0 OTHERWISE.
+!     WT       = VECTOR OF WEIGHTS FOR COMPUTING NORMS
+!     E        = WORK SPACE (TEMPORARY) OF LENGTH NEQ
+!     WM       = REAL WORK SPACE FOR MATRICES. ON
+!                OUTPUT IT CONTAINS THE LU DECOMPOSITION
+!                OF THE ITERATION MATRIX.
+!     IWM      = INTEGER WORK SPACE CONTAINING
+!                MATRIX INFORMATION
+!     RES      = NAME OF THE EXTERNAL USER-SUPPLIED ROUTINE
+!                TO EVALUATE THE RESIDUAL FUNCTION G(X,Y,YPRIME)
+!     IRES     = FLAG WHICH IS EQUAL TO ZERO IF NO ILLEGAL VALUES
+!                IN RES, AND LESS THAN ZERO OTHERWISE.  (IF IRES
+!                IS LESS THAN ZERO, THE MATRIX WAS NOT COMPLETED)
+!                IN THIS CASE (IF IRES .LT. 0), THEN IER = 0.
+!     UROUND   = THE UNIT ROUNDOFF ERROR OF THE MACHINE BEING USED.
+!     JAC      = NAME OF THE EXTERNAL USER-SUPPLIED ROUTINE
+!                TO EVALUATE THE ITERATION MATRIX (THIS ROUTINE
+!                IS ONLY USED IF IWM(MTYPE) IS 1 OR 4)
 !-----------------------------------------------------------------------
-!***routines called  dgbfa, dgefa
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901010  modified three max calls to be all on one line.  (fnf)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!   901101  corrected purpose.  (fnf)
-!***end prologue  ddajac
+!***ROUTINES CALLED  DGBFA, DGEFA
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901010  Modified three MAX calls to be all on one line.  (FNF)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!   901101  Corrected PURPOSE.  (FNF)
+!***END PROLOGUE  DDAJAC
 !
-      integer  neq, ier, iwm(*), ires, ipar(*), ntemp
-      double precision                                                  &
-     &   x, y(*), yprime(*), delta(*), cj, h, wt(*), e(*), wm(*),       &
-     &   uround, rpar(*)
-      class(problem_ddassl) :: eqn
+      INTEGER  NEQ, IER, IWM(*), IRES, IPAR(*), NTEMP
+      DOUBLE PRECISION                                                  &
+     &   X, Y(*), YPRIME(*), DELTA(*), CJ, H, WT(*), E(*), WM(*),       &
+     &   UROUND, RPAR(*)
+      class(problem_ddassl), target :: problem
 !
-
-      integer  i, i1, i2, ii, ipsave, isave, j, k, l, lenpd, lipvt,     &
-     &   lml, lmtype, lmu, mba, mband, meb1, meband, msave, mtype, n,   &
-     &   npd, npdm1, nrow
-      double precision  del, delinv, squr, ypsave, ysave
+      EXTERNAL  DGBFA, DGEFA
 !
-      parameter (npd=1)
-      parameter (lml=1)
-      parameter (lmu=2)
-      parameter (lmtype=4)
-      parameter (lipvt=21)
+      INTEGER  I, I1, I2, II, IPSAVE, ISAVE, J, K, L, LENPD, LIPVT,     &
+     &   LML, LMTYPE, LMU, MBA, MBAND, MEB1, MEBAND, MSAVE, MTYPE, N,   &
+     &   NPD, NPDM1, NROW
+      DOUBLE PRECISION  DEL, DELINV, SQUR, YPSAVE, YSAVE
 !
-!***first executable statement  ddajac
-      ier = 0
-      npdm1=npd-1
-      mtype=iwm(lmtype)
-      go to (100,200,300,400,500),mtype
+      PARAMETER (NPD=1)
+      PARAMETER (LML=1)
+      PARAMETER (LMU=2)
+      PARAMETER (LMTYPE=4)
+      PARAMETER (LIPVT=21)
 !
-!
-!     dense user-supplied matrix
-  100 lenpd=neq*neq
-      do i=1,lenpd
-         wm(npdm1+i)=0.0d0
-      end do
-      call eqn%jac(x,y,yprime,wm(npd),cj,rpar,ipar)
-      go to 230
+!***FIRST EXECUTABLE STATEMENT  DDAJAC
+      IER = 0
+      NPDM1=NPD-1
+      MTYPE=IWM(LMTYPE)
+      GO TO (100,200,300,400,500),MTYPE
 !
 !
-!     dense finite-difference-generated matrix
-  200 ires=0
-      nrow=npdm1
-      squr = sqrt(uround)
-      do i=1,neq
-         del=squr*max(abs(y(i)),abs(h*yprime(i)),abs(wt(i)))
-         del=sign(del,h*yprime(i))
-         del=(y(i)+del)-y(i)
-         ysave=y(i)
-         ypsave=yprime(i)
-         y(i)=y(i)+del
-         yprime(i)=yprime(i)+cj*del
-         call eqn%res(x,y,yprime,e,ires,rpar,ipar)
-         if (ires .lt. 0) return
-         delinv=1.0d0/del
-         do l=1,neq
-            wm(nrow+l)=(e(l)-delta(l))*delinv
-         end do
-         nrow=nrow+neq
-         y(i)=ysave
-         yprime(i)=ypsave
-      end do
-
-!
-!     do dense-matrix lu decomposition on pd
-  230    call dgefa(wm(npd),neq,neq,iwm(lipvt),ier)
-      return
+!     DENSE USER-SUPPLIED MATRIX
+  100 LENPD=NEQ*NEQ
+      DO 110 I=1,LENPD
+  110    WM(NPDM1+I)=0.0D0
+      CALL PROBLEM%JAC(X,Y,YPRIME,WM(NPD),CJ,RPAR,IPAR)
+      GO TO 230
 !
 !
-!     dummy section for iwm(mtype)=3
-  300 return
+!     DENSE FINITE-DIFFERENCE-GENERATED MATRIX
+  200 IRES=0
+      NROW=NPDM1
+      SQUR = SQRT(UROUND)
+      DO 210 I=1,NEQ
+         DEL=SQUR*MAX(ABS(Y(I)),ABS(H*YPRIME(I)),ABS(WT(I)))
+         DEL=SIGN(DEL,H*YPRIME(I))
+         DEL=(Y(I)+DEL)-Y(I)
+         YSAVE=Y(I)
+         YPSAVE=YPRIME(I)
+         Y(I)=Y(I)+DEL
+         YPRIME(I)=YPRIME(I)+CJ*DEL
+         CALL problem%res(X,Y,YPRIME,E,IRES,RPAR,IPAR)
+         IF (IRES .LT. 0) RETURN
+         DELINV=1.0D0/DEL
+         DO 220 L=1,NEQ
+  220    WM(NROW+L)=(E(L)-DELTA(L))*DELINV
+      NROW=NROW+NEQ
+      Y(I)=YSAVE
+      YPRIME(I)=YPSAVE
+  210 END DO
 !
 !
-!     banded user-supplied matrix
-  400 lenpd=(2*iwm(lml)+iwm(lmu)+1)*neq
-      do 410 i=1,lenpd
-  410    wm(npdm1+i)=0.0d0
-      call eqn%jac(x,y,yprime,wm(npd),cj,rpar,ipar)
-      meband=2*iwm(lml)+iwm(lmu)+1
-      go to 550
+!     DO DENSE-MATRIX LU DECOMPOSITION ON PD
+  230    CALL DGEFA(WM(NPD),NEQ,NEQ,IWM(LIPVT),IER)
+      RETURN
 !
 !
-!     banded finite-difference-generated matrix
-  500 mband=iwm(lml)+iwm(lmu)+1
-      mba=min(mband,neq)
-      meband=mband+iwm(lml)
-      meb1=meband-1
-      msave=(neq/mband)+1
-      isave=ntemp-1
-      ipsave=isave+msave
-      ires=0
-      squr=sqrt(uround)
-      do 540 j=1,mba
-         do 510 n=j,neq,mband
-          k= (n-j)/mband + 1
-          wm(isave+k)=y(n)
-          wm(ipsave+k)=yprime(n)
-          del=squr*max(abs(y(n)),abs(h*yprime(n)),abs(wt(n)))
-          del=sign(del,h*yprime(n))
-          del=(y(n)+del)-y(n)
-          y(n)=y(n)+del
-  510     yprime(n)=yprime(n)+cj*del
-      call eqn%res(x,y,yprime,e,ires,rpar,ipar)
-      if (ires .lt. 0) return
-      do 530 n=j,neq,mband
-          k= (n-j)/mband + 1
-          y(n)=wm(isave+k)
-          yprime(n)=wm(ipsave+k)
-          del=squr*max(abs(y(n)),abs(h*yprime(n)),abs(wt(n)))
-          del=sign(del,h*yprime(n))
-          del=(y(n)+del)-y(n)
-          delinv=1.0d0/del
-          i1=max(1,(n-iwm(lmu)))
-          i2=min(neq,(n+iwm(lml)))
-          ii=n*meb1-iwm(lml)+npdm1
-          do 520 i=i1,i2
-  520       wm(ii+i)=(e(i)-delta(i))*delinv
-  530    continue
-  540 end do
+!     DUMMY SECTION FOR IWM(MTYPE)=3
+  300 RETURN
 !
 !
-!     do lu decomposition of banded pd
-  550 call dgbfa(wm(npd),meband,neq,                                    &
-     &    iwm(lml),iwm(lmu),iwm(lipvt),ier)
-      return
-!------end of subroutine ddajac------
-      end subroutine ddajac
-!deck ddanrm
-      double precision function ddanrm (neq, v, wt, rpar, ipar)
-!***begin prologue  ddanrm
-!***subsidiary
-!***purpose  compute vector norm for ddassl.
-!***library   slatec (dassl)
-!***type      double precision (sdanrm-s, ddanrm-d)
-!***author  petzold, linda r., (llnl)
-!***description
+!     BANDED USER-SUPPLIED MATRIX
+  400 LENPD=(2*IWM(LML)+IWM(LMU)+1)*NEQ
+      DO 410 I=1,LENPD
+  410    WM(NPDM1+I)=0.0D0
+      CALL PROBLEM%JAC(X,Y,YPRIME,WM(NPD),CJ,RPAR,IPAR)
+      MEBAND=2*IWM(LML)+IWM(LMU)+1
+      GO TO 550
+!
+!
+!     BANDED FINITE-DIFFERENCE-GENERATED MATRIX
+  500 MBAND=IWM(LML)+IWM(LMU)+1
+      MBA=MIN(MBAND,NEQ)
+      MEBAND=MBAND+IWM(LML)
+      MEB1=MEBAND-1
+      MSAVE=(NEQ/MBAND)+1
+      ISAVE=NTEMP-1
+      IPSAVE=ISAVE+MSAVE
+      IRES=0
+      SQUR=SQRT(UROUND)
+      DO 540 J=1,MBA
+         DO 510 N=J,NEQ,MBAND
+          K= (N-J)/MBAND + 1
+          WM(ISAVE+K)=Y(N)
+          WM(IPSAVE+K)=YPRIME(N)
+          DEL=SQUR*MAX(ABS(Y(N)),ABS(H*YPRIME(N)),ABS(WT(N)))
+          DEL=SIGN(DEL,H*YPRIME(N))
+          DEL=(Y(N)+DEL)-Y(N)
+          Y(N)=Y(N)+DEL
+  510     YPRIME(N)=YPRIME(N)+CJ*DEL
+      CALL problem%res(X,Y,YPRIME,E,IRES,RPAR,IPAR)
+      IF (IRES .LT. 0) RETURN
+      DO 530 N=J,NEQ,MBAND
+          K= (N-J)/MBAND + 1
+          Y(N)=WM(ISAVE+K)
+          YPRIME(N)=WM(IPSAVE+K)
+          DEL=SQUR*MAX(ABS(Y(N)),ABS(H*YPRIME(N)),ABS(WT(N)))
+          DEL=SIGN(DEL,H*YPRIME(N))
+          DEL=(Y(N)+DEL)-Y(N)
+          DELINV=1.0D0/DEL
+          I1=MAX(1,(N-IWM(LMU)))
+          I2=MIN(NEQ,(N+IWM(LML)))
+          II=N*MEB1-IWM(LML)+NPDM1
+          DO 520 I=I1,I2
+  520       WM(II+I)=(E(I)-DELTA(I))*DELINV
+  530    CONTINUE
+  540 END DO
+!
+!
+!     DO LU DECOMPOSITION OF BANDED PD
+  550 CALL DGBFA(WM(NPD),MEBAND,NEQ,                                    &
+     &    IWM(LML),IWM(LMU),IWM(LIPVT),IER)
+      RETURN
+!------END OF SUBROUTINE DDAJAC------
+      END subroutine ddajac
+!DECK DDANRM
+      DOUBLE PRECISION FUNCTION DDANRM (NEQ, V, WT, RPAR, IPAR)
+!***BEGIN PROLOGUE  DDANRM
+!***SUBSIDIARY
+!***PURPOSE  Compute vector norm for DDASSL.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDANRM-S, DDANRM-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------------
-!     this function routine computes the weighted
-!     root-mean-square norm of the vector of length
-!     neq contained in the array v,with weights
-!     contained in the array wt of length neq.
-!        ddanrm=sqrt((1/neq)*sum(v(i)/wt(i))**2)
+!     THIS FUNCTION ROUTINE COMPUTES THE WEIGHTED
+!     ROOT-MEAN-SQUARE NORM OF THE VECTOR OF LENGTH
+!     NEQ CONTAINED IN THE ARRAY V,WITH WEIGHTS
+!     CONTAINED IN THE ARRAY WT OF LENGTH NEQ.
+!        DDANRM=SQRT((1/NEQ)*SUM(V(I)/WT(I))**2)
 !-----------------------------------------------------------------------
-!***routines called  (none)
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!***end prologue  ddanrm
+!***ROUTINES CALLED  (NONE)
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!***END PROLOGUE  DDANRM
 !
-      integer  neq, ipar(*)
-      double precision  v(neq), wt(neq), rpar(*)
+      INTEGER  NEQ, IPAR(*)
+      DOUBLE PRECISION  V(NEQ), WT(NEQ), RPAR(*)
 !
-      integer  i
-      double precision  sum, vmax
+      INTEGER  I
+      DOUBLE PRECISION  SUM, VMAX
 !
-!***first executable statement  ddanrm
-      ddanrm = 0.0d0
-      vmax = 0.0d0
-      do 10 i = 1,neq
-        if(abs(v(i)/wt(i)) .gt. vmax) vmax = abs(v(i)/wt(i))
-   10   continue
-      if(vmax .le. 0.0d0) go to 30
-      sum = 0.0d0
-      do 20 i = 1,neq
-   20   sum = sum + ((v(i)/wt(i))/vmax)**2
-      ddanrm = vmax*sqrt(sum/neq)
-   30 continue
-      return
-!------end of function ddanrm------
-      end function ddanrm
-!deck ddaslv
-      subroutine ddaslv (neq, delta, wm, iwm)
-!***begin prologue  ddaslv
-!***subsidiary
-!***purpose  linear system solver for ddassl.
-!***library   slatec (dassl)
-!***type      double precision (sdaslv-s, ddaslv-d)
-!***author  petzold, linda r., (llnl)
-!***description
+!***FIRST EXECUTABLE STATEMENT  DDANRM
+      DDANRM = 0.0D0
+      VMAX = 0.0D0
+      DO 10 I = 1,NEQ
+        IF(ABS(V(I)/WT(I)) .GT. VMAX) VMAX = ABS(V(I)/WT(I))
+   10   CONTINUE
+      IF(VMAX .LE. 0.0D0) GO TO 30
+      SUM = 0.0D0
+      DO 20 I = 1,NEQ
+   20   SUM = SUM + ((V(I)/WT(I))/VMAX)**2
+      DDANRM = VMAX*SQRT(SUM/NEQ)
+   30 CONTINUE
+      RETURN
+!------END OF FUNCTION DDANRM------
+      END function ddanrm
+!DECK DDASLV
+      SUBROUTINE DDASLV (NEQ, DELTA, WM, IWM)
+!***BEGIN PROLOGUE  DDASLV
+!***SUBSIDIARY
+!***PURPOSE  Linear system solver for DDASSL.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDASLV-S, DDASLV-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------------
-!     this routine manages the solution of the linear
-!     system arising in the newton iteration.
-!     matrices and real temporary storage and
-!     real information are stored in the array wm.
-!     integer matrix information is stored in
-!     the array iwm.
-!     for a dense matrix, the linpack routine
-!     dgesl is called.
-!     for a banded matrix,the linpack routine
-!     dgbsl is called.
+!     THIS ROUTINE MANAGES THE SOLUTION OF THE LINEAR
+!     SYSTEM ARISING IN THE NEWTON ITERATION.
+!     MATRICES AND REAL TEMPORARY STORAGE AND
+!     REAL INFORMATION ARE STORED IN THE ARRAY WM.
+!     INTEGER MATRIX INFORMATION IS STORED IN
+!     THE ARRAY IWM.
+!     FOR A DENSE MATRIX, THE LINPACK ROUTINE
+!     DGESL IS CALLED.
+!     FOR A BANDED MATRIX,THE LINPACK ROUTINE
+!     DGBSL IS CALLED.
 !-----------------------------------------------------------------------
-!***routines called  dgbsl, dgesl
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!***end prologue  ddaslv
+!***ROUTINES CALLED  DGBSL, DGESL
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!***END PROLOGUE  DDASLV
 !
-      integer  neq, iwm(*)
-      double precision  delta(*), wm(*)
+      INTEGER  NEQ, IWM(*)
+      DOUBLE PRECISION  DELTA(*), WM(*)
 !
-      external  dgbsl, dgesl
+      EXTERNAL  DGBSL, DGESL
 !
-      integer  lipvt, lml, lmu, lmtype, meband, mtype, npd
-      parameter (npd=1)
-      parameter (lml=1)
-      parameter (lmu=2)
-      parameter (lmtype=4)
-      parameter (lipvt=21)
+      INTEGER  LIPVT, LML, LMU, LMTYPE, MEBAND, MTYPE, NPD
+      PARAMETER (NPD=1)
+      PARAMETER (LML=1)
+      PARAMETER (LMU=2)
+      PARAMETER (LMTYPE=4)
+      PARAMETER (LIPVT=21)
 !
-!***first executable statement  ddaslv
-      mtype=iwm(lmtype)
-      go to(100,100,300,400,400),mtype
+!***FIRST EXECUTABLE STATEMENT  DDASLV
+      MTYPE=IWM(LMTYPE)
+      GO TO(100,100,300,400,400),MTYPE
 !
-!     dense matrix
-  100 call dgesl(wm(npd),neq,neq,iwm(lipvt),delta,0)
-      return
+!     DENSE MATRIX
+  100 CALL DGESL(WM(NPD),NEQ,NEQ,IWM(LIPVT),DELTA,0)
+      RETURN
 !
-!     dummy section for mtype=3
-  300 continue
-      return
+!     DUMMY SECTION FOR MTYPE=3
+  300 CONTINUE
+      RETURN
 !
-!     banded matrix
-  400 meband=2*iwm(lml)+iwm(lmu)+1
-      call dgbsl(wm(npd),meband,neq,iwm(lml),                           &
-     &  iwm(lmu),iwm(lipvt),delta,0)
-      return
-!------end of subroutine ddaslv------
-      end subroutine ddaslv
-!deck ddastp
-      subroutine ddastp (eqn, x, y, yprime, neq, h, wt, jstart,    &
-     &   idid, rpar, ipar, phi, delta, e, wm, iwm, alpha, beta, gamma,  &
-     &   psi, sigma, cj, cjold, hold, s, hmin, uround, iphase, jcalc, k,&
-     &   kold, ns, nonneg, ntemp)
-!***begin prologue  ddastp
-!***subsidiary
-!***purpose  perform one step of the ddassl integration.
-!***library   slatec (dassl)
-!***type      double precision (sdastp-s, ddastp-d)
-!***author  petzold, linda r., (llnl)
-!***description
+!     BANDED MATRIX
+  400 MEBAND=2*IWM(LML)+IWM(LMU)+1
+      CALL DGBSL(WM(NPD),MEBAND,NEQ,IWM(LML),                           &
+     &  IWM(LMU),IWM(LIPVT),DELTA,0)
+      RETURN
+!------END OF SUBROUTINE DDASLV------
+      END subroutine ddaslv
+!DECK DDASTP
+      SUBROUTINE DDASTP (problem, X, Y, YPRIME, NEQ, H, WT, JSTART,         &
+     &   IDID, RPAR, IPAR, PHI, DELTA, E, WM, IWM, ALPHA, BETA, GAMMA,  &
+     &   PSI, SIGMA, CJ, CJOLD, HOLD, S, HMIN, UROUND, IPHASE, JCALC, K,&
+     &   KOLD, NS, NONNEG, NTEMP)
+!***BEGIN PROLOGUE  DDASTP
+!***SUBSIDIARY
+!***PURPOSE  Perform one step of the DDASSL integration.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDASTP-S, DDASTP-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------------
-!     ddastp solves a system of differential/
-!     algebraic equations of the form
-!     g(x,y,yprime) = 0,  for one step (normally
-!     from x to x+h).
+!     DDASTP SOLVES A SYSTEM OF DIFFERENTIAL/
+!     ALGEBRAIC EQUATIONS OF THE FORM
+!     G(X,Y,YPRIME) = 0,  FOR ONE STEP (NORMALLY
+!     FROM X TO X+H).
 !
-!     the methods used are modified divided
-!     difference,fixed leading coefficient
-!     forms of backward differentiation
-!     formulas. the code adjusts the stepsize
-!     and order to control the local error per
-!     step.
-!
-!
-!     the parameters represent
-!     x  --        independent variable
-!     y  --        solution vector at x
-!     yprime --    derivative of solution vector
-!                  after successful step
-!     neq --       number of equations to be integrated
-!     res --       external user-supplied subroutine
-!                  to evaluate the residual.  the call is
-!                  call res(x,y,yprime,delta,ires,rpar,ipar)
-!                  x,y,yprime are input.  delta is output.
-!                  on input, ires=0.  res should alter ires only
-!                  if it encounters an illegal value of y or a
-!                  stop condition.  set ires=-1 if an input value
-!                  of y is illegal, and ddastp will try to solve
-!                  the problem without getting ires = -1.  if
-!                  ires=-2, ddastp returns control to the calling
-!                  program with idid = -11.
-!     jac --       external user-supplied routine to evaluate
-!                  the iteration matrix (this is optional)
-!                  the call is of the form
-!                  call jac(x,y,yprime,pd,cj,rpar,ipar)
-!                  pd is the matrix of partial derivatives,
-!                  pd=dg/dy+cj*dg/dyprime
-!     h --         appropriate step size for next step.
-!                  normally determined by the code
-!     wt --        vector of weights for error criterion.
-!     jstart --    integer variable set 0 for
-!                  first step, 1 otherwise.
-!     idid --      completion code with the following meanings:
-!                  idid= 1 -- the step was completed successfully
-!                  idid=-6 -- the error test failed repeatedly
-!                  idid=-7 -- the corrector could not converge
-!                  idid=-8 -- the iteration matrix is singular
-!                  idid=-9 -- the corrector could not converge.
-!                             there were repeated error test
-!                             failures on this step.
-!                  idid=-10-- the corrector could not converge
-!                             because ires was equal to minus one
-!                  idid=-11-- ires equal to -2 was encountered,
-!                             and control is being returned to
-!                             the calling program
-!     rpar,ipar -- real and integer parameter arrays that
-!                  are used for communication between the
-!                  calling program and external user routines
-!                  they are not altered by ddastp
-!     phi --       array of divided differences used by
-!                  ddastp. the length is neq*(k+1),where
-!                  k is the maximum order
-!     delta,e --   work vectors for ddastp of length neq
-!     wm,iwm --    real and integer arrays storing
-!                  matrix information such as the matrix
-!                  of partial derivatives,permutation
-!                  vector, and various other information.
-!
-!     the other parameters are information
-!     which is needed internally by ddastp to
-!     continue from step to step.
-!
-!-----------------------------------------------------------------------
-!***routines called  ddajac, ddanrm, ddaslv, ddatrp
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!   951030  reset psi(1), phi(*,2) at 690. (ach)
-!   000711  fixed newton convergence test below 360 (ach)
-!***end prologue  ddastp
-!
-      integer  neq, jstart, idid, ipar(*), iwm(*), iphase, jcalc, k,    &
-     &   kold, ns, nonneg, ntemp
-      double precision                                                  &
-     &   x, y(*), yprime(*), h, wt(*), rpar(*), phi(neq,*), delta(*),   &
-     &   e(*), wm(*), alpha(*), beta(*), gamma(*), psi(*), sigma(*), cj,&
-     &   cjold, hold, s, hmin, uround
-      class(problem_ddassl) :: eqn
-
-      integer  i, ier, ires, j, j1, kdiff, km1, knew, kp1, kp2, lctf,   &
-     &   letf, lmxord, lnje, lnre, lnst, m, maxit, ncf, nef, nsf, nsp1
-      double precision                                                  &
-     &   alpha0, alphas, cjlast, ck, delnrm, enorm, erk, erkm1,         &
-     &   erkm2, erkp1, err, est, hnew, oldnrm, pnorm, r, rate, temp1,   &
-     &   temp2, terk, terkm1, terkm2, terkp1, xold, xrate
-      logical  convgd
-!
-      parameter (lmxord=3)
-      parameter (lnst=11)
-      parameter (lnre=12)
-      parameter (lnje=13)
-      parameter (letf=14)
-      parameter (lctf=15)
-!
-      data maxit/4/
-      data xrate/0.25d0/
+!     THE METHODS USED ARE MODIFIED DIVIDED
+!     DIFFERENCE,FIXED LEADING COEFFICIENT
+!     FORMS OF BACKWARD DIFFERENTIATION
+!     FORMULAS. THE CODE ADJUSTS THE STEPSIZE
+!     AND ORDER TO CONTROL THE LOCAL ERROR PER
+!     STEP.
 !
 !
+!     THE PARAMETERS REPRESENT
+!     X  --        INDEPENDENT VARIABLE
+!     Y  --        SOLUTION VECTOR AT X
+!     YPRIME --    DERIVATIVE OF SOLUTION VECTOR
+!                  AFTER SUCCESSFUL STEP
+!     NEQ --       NUMBER OF EQUATIONS TO BE INTEGRATED
+!     RES --       EXTERNAL USER-SUPPLIED SUBROUTINE
+!                  TO EVALUATE THE RESIDUAL.  THE CALL IS
+!                  CALL RES(X,Y,YPRIME,DELTA,IRES,RPAR,IPAR)
+!                  X,Y,YPRIME ARE INPUT.  DELTA IS OUTPUT.
+!                  ON INPUT, IRES=0.  RES SHOULD ALTER IRES ONLY
+!                  IF IT ENCOUNTERS AN ILLEGAL VALUE OF Y OR A
+!                  STOP CONDITION.  SET IRES=-1 IF AN INPUT VALUE
+!                  OF Y IS ILLEGAL, AND DDASTP WILL TRY TO SOLVE
+!                  THE PROBLEM WITHOUT GETTING IRES = -1.  IF
+!                  IRES=-2, DDASTP RETURNS CONTROL TO THE CALLING
+!                  PROGRAM WITH IDID = -11.
+!     JAC --       EXTERNAL USER-SUPPLIED ROUTINE TO EVALUATE
+!                  THE ITERATION MATRIX (THIS IS OPTIONAL)
+!                  THE CALL IS OF THE FORM
+!                  CALL JAC(X,Y,YPRIME,PD,CJ,RPAR,IPAR)
+!                  PD IS THE MATRIX OF PARTIAL DERIVATIVES,
+!                  PD=DG/DY+CJ*DG/DYPRIME
+!     H --         APPROPRIATE STEP SIZE FOR NEXT STEP.
+!                  NORMALLY DETERMINED BY THE CODE
+!     WT --        VECTOR OF WEIGHTS FOR ERROR CRITERION.
+!     JSTART --    INTEGER VARIABLE SET 0 FOR
+!                  FIRST STEP, 1 OTHERWISE.
+!     IDID --      COMPLETION CODE WITH THE FOLLOWING MEANINGS:
+!                  IDID= 1 -- THE STEP WAS COMPLETED SUCCESSFULLY
+!                  IDID=-6 -- THE ERROR TEST FAILED REPEATEDLY
+!                  IDID=-7 -- THE CORRECTOR COULD NOT CONVERGE
+!                  IDID=-8 -- THE ITERATION MATRIX IS SINGULAR
+!                  IDID=-9 -- THE CORRECTOR COULD NOT CONVERGE.
+!                             THERE WERE REPEATED ERROR TEST
+!                             FAILURES ON THIS STEP.
+!                  IDID=-10-- THE CORRECTOR COULD NOT CONVERGE
+!                             BECAUSE IRES WAS EQUAL TO MINUS ONE
+!                  IDID=-11-- IRES EQUAL TO -2 WAS ENCOUNTERED,
+!                             AND CONTROL IS BEING RETURNED TO
+!                             THE CALLING PROGRAM
+!     RPAR,IPAR -- REAL AND INTEGER PARAMETER ARRAYS THAT
+!                  ARE USED FOR COMMUNICATION BETWEEN THE
+!                  CALLING PROGRAM AND EXTERNAL USER ROUTINES
+!                  THEY ARE NOT ALTERED BY DDASTP
+!     PHI --       ARRAY OF DIVIDED DIFFERENCES USED BY
+!                  DDASTP. THE LENGTH IS NEQ*(K+1),WHERE
+!                  K IS THE MAXIMUM ORDER
+!     DELTA,E --   WORK VECTORS FOR DDASTP OF LENGTH NEQ
+!     WM,IWM --    REAL AND INTEGER ARRAYS STORING
+!                  MATRIX INFORMATION SUCH AS THE MATRIX
+!                  OF PARTIAL DERIVATIVES,PERMUTATION
+!                  VECTOR, AND VARIOUS OTHER INFORMATION.
 !
-!
+!     THE OTHER PARAMETERS ARE INFORMATION
+!     WHICH IS NEEDED INTERNALLY BY DDASTP TO
+!     CONTINUE FROM STEP TO STEP.
 !
 !-----------------------------------------------------------------------
-!     block 1.
-!     initialize. on the first call,set
-!     the order to 1 and initialize
-!     other variables.
-!-----------------------------------------------------------------------
+!***ROUTINES CALLED  DDAJAC, DDANRM, DDASLV, DDATRP
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!   951030  Reset PSI(1), PHI(*,2) at 690. (ACH)
+!   000711  Fixed Newton convergence test below 360 (ACH)
+!***END PROLOGUE  DDASTP
 !
-!     initializations for all calls
-!***first executable statement  ddastp
-      idid=1
-      xold=x
-      ncf=0
-      nsf=0
-      nef=0
-      if(jstart .ne. 0) go to 120
+      INTEGER  NEQ, JSTART, IDID, IPAR(*), IWM(*), IPHASE, JCALC, K,    &
+     &   KOLD, NS, NONNEG, NTEMP
+      DOUBLE PRECISION                                                  &
+     &   X, Y(*), YPRIME(*), H, WT(*), RPAR(*), PHI(NEQ,*), DELTA(*),   &
+     &   E(*), WM(*), ALPHA(*), BETA(*), GAMMA(*), PSI(*), SIGMA(*), CJ,&
+     &   CJOLD, HOLD, S, HMIN, UROUND
+      class(problem_ddassl), target :: problem
 !
-!     if this is the first step,perform
-!     other initializations
-      iwm(letf) = 0
-      iwm(lctf) = 0
-      k=1
-      kold=0
-      hold=0.0d0
-      jstart=1
-      psi(1)=h
-      cjold = 1.0d0/h
-      cj = cjold
-      s = 100.d0
-      jcalc = -1
-      delnrm=1.0d0
-      iphase = 0
-      ns=0
-  120 continue
+      INTEGER  I, IER, IRES, J, J1, KDIFF, KM1, KNEW, KP1, KP2, LCTF,   &
+     &   LETF, LMXORD, LNJE, LNRE, LNST, M, MAXIT, NCF, NEF, NSF, NSP1
+      DOUBLE PRECISION                                                  &
+     &   ALPHA0, ALPHAS, CJLAST, CK, DELNRM, ENORM, ERK, ERKM1,         &
+     &   ERKM2, ERKP1, ERR, EST, HNEW, OLDNRM, PNORM, R, RATE, TEMP1,   &
+     &   TEMP2, TERK, TERKM1, TERKM2, TERKP1, XOLD, XRATE
+      LOGICAL  CONVGD
+!
+      PARAMETER (LMXORD=3)
+      PARAMETER (LNST=11)
+      PARAMETER (LNRE=12)
+      PARAMETER (LNJE=13)
+      PARAMETER (LETF=14)
+      PARAMETER (LCTF=15)
+!
+      DATA MAXIT/4/
+      DATA XRATE/0.25D0/
 !
 !
 !
 !
 !
 !-----------------------------------------------------------------------
-!     block 2
-!     compute coefficients of formulas for
-!     this step.
+!     BLOCK 1.
+!     INITIALIZE. ON THE FIRST CALL,SET
+!     THE ORDER TO 1 AND INITIALIZE
+!     OTHER VARIABLES.
 !-----------------------------------------------------------------------
-  200 continue
-      kp1=k+1
-      kp2=k+2
-      km1=k-1
-      xold=x
-      if(h.ne.hold.or.k .ne. kold) ns = 0
-      ns=min(ns+1,kold+2)
-      nsp1=ns+1
-      if(kp1 .lt. ns)go to 230
 !
-      beta(1)=1.0d0
-      alpha(1)=1.0d0
-      temp1=h
-      gamma(1)=0.0d0
-      sigma(1)=1.0d0
-      do 210 i=2,kp1
-         temp2=psi(i-1)
-         psi(i-1)=temp1
-         beta(i)=beta(i-1)*psi(i-1)/temp2
-         temp1=temp2+h
-         alpha(i)=h/temp1
-         sigma(i)=(i-1)*sigma(i-1)*alpha(i)
-         gamma(i)=gamma(i-1)+alpha(i-1)/h
-  210    continue
-      psi(kp1)=temp1
-  230 continue
+!     INITIALIZATIONS FOR ALL CALLS
+!***FIRST EXECUTABLE STATEMENT  DDASTP
+      IDID=1
+      XOLD=X
+      NCF=0
+      NSF=0
+      NEF=0
+      IF(JSTART .NE. 0) GO TO 120
 !
-!     compute alphas, alpha0
-      alphas = 0.0d0
-      alpha0 = 0.0d0
-      do 240 i = 1,k
-        alphas = alphas - 1.0d0/i
-        alpha0 = alpha0 - alpha(i)
-  240   continue
-!
-!     compute leading coefficient cj
-      cjlast = cj
-      cj = -alphas/h
-!
-!     compute variable stepsize error coefficient ck
-      ck = abs(alpha(kp1) + alphas - alpha0)
-      ck = max(ck,alpha(kp1))
-!
-!     decide whether new jacobian is needed
-      temp1 = (1.0d0 - xrate)/(1.0d0 + xrate)
-      temp2 = 1.0d0/temp1
-      if (cj/cjold .lt. temp1 .or. cj/cjold .gt. temp2) jcalc = -1
-      if (cj .ne. cjlast) s = 100.d0
-!
-!     change phi to phi star
-      if(kp1 .lt. nsp1) go to 280
-      do 270 j=nsp1,kp1
-         do 260 i=1,neq
-  260       phi(i,j)=beta(j)*phi(i,j)
-  270    continue
-  280 continue
-!
-!     update time
-      x=x+h
+!     IF THIS IS THE FIRST STEP,PERFORM
+!     OTHER INITIALIZATIONS
+      IWM(LETF) = 0
+      IWM(LCTF) = 0
+      K=1
+      KOLD=0
+      HOLD=0.0D0
+      JSTART=1
+      PSI(1)=H
+      CJOLD = 1.0D0/H
+      CJ = CJOLD
+      S = 100.D0
+      JCALC = -1
+      DELNRM=1.0D0
+      IPHASE = 0
+      NS=0
+  120 CONTINUE
 !
 !
 !
 !
 !
 !-----------------------------------------------------------------------
-!     block 3
-!     predict the solution and derivative,
-!     and solve the corrector equation
+!     BLOCK 2
+!     COMPUTE COEFFICIENTS OF FORMULAS FOR
+!     THIS STEP.
 !-----------------------------------------------------------------------
+  200 CONTINUE
+      KP1=K+1
+      KP2=K+2
+      KM1=K-1
+      XOLD=X
+      IF(H.NE.HOLD.OR.K .NE. KOLD) NS = 0
+      NS=MIN(NS+1,KOLD+2)
+      NSP1=NS+1
+      IF(KP1 .LT. NS)GO TO 230
 !
-!     first,predict the solution and derivative
-  300 continue
-      do 310 i=1,neq
-         y(i)=phi(i,1)
-  310    yprime(i)=0.0d0
-      do 330 j=2,kp1
-         do 320 i=1,neq
-            y(i)=y(i)+phi(i,j)
-  320       yprime(i)=yprime(i)+gamma(j)*phi(i,j)
-  330 end do
-      pnorm = ddanrm (neq,y,wt,rpar,ipar)
+      BETA(1)=1.0D0
+      ALPHA(1)=1.0D0
+      TEMP1=H
+      GAMMA(1)=0.0D0
+      SIGMA(1)=1.0D0
+      DO 210 I=2,KP1
+         TEMP2=PSI(I-1)
+         PSI(I-1)=TEMP1
+         BETA(I)=BETA(I-1)*PSI(I-1)/TEMP2
+         TEMP1=TEMP2+H
+         ALPHA(I)=H/TEMP1
+         SIGMA(I)=(I-1)*SIGMA(I-1)*ALPHA(I)
+         GAMMA(I)=GAMMA(I-1)+ALPHA(I-1)/H
+  210    CONTINUE
+      PSI(KP1)=TEMP1
+  230 CONTINUE
 !
+!     COMPUTE ALPHAS, ALPHA0
+      ALPHAS = 0.0D0
+      ALPHA0 = 0.0D0
+      DO 240 I = 1,K
+        ALPHAS = ALPHAS - 1.0D0/I
+        ALPHA0 = ALPHA0 - ALPHA(I)
+  240   CONTINUE
 !
+!     COMPUTE LEADING COEFFICIENT CJ
+      CJLAST = CJ
+      CJ = -ALPHAS/H
 !
-!     solve the corrector equation using a
-!     modified newton scheme.
-      convgd= .true.
-      m=0
-      iwm(lnre)=iwm(lnre)+1
-      ires = 0
-      call eqn%res(x,y,yprime,delta,ires,rpar,ipar)
-      if (ires .lt. 0) go to 380
+!     COMPUTE VARIABLE STEPSIZE ERROR COEFFICIENT CK
+      CK = ABS(ALPHA(KP1) + ALPHAS - ALPHA0)
+      CK = MAX(CK,ALPHA(KP1))
 !
+!     DECIDE WHETHER NEW JACOBIAN IS NEEDED
+      TEMP1 = (1.0D0 - XRATE)/(1.0D0 + XRATE)
+      TEMP2 = 1.0D0/TEMP1
+      IF (CJ/CJOLD .LT. TEMP1 .OR. CJ/CJOLD .GT. TEMP2) JCALC = -1
+      IF (CJ .NE. CJLAST) S = 100.D0
 !
-!     if indicated,reevaluate the
-!     iteration matrix pd = dg/dy + cj*dg/dyprime
-!     (where g(x,y,yprime)=0). set
-!     jcalc to 0 as an indicator that
-!     this has been done.
-      if(jcalc .ne. -1)go to 340
-      iwm(lnje)=iwm(lnje)+1
-      jcalc=0
-      call eqn%ddajac(neq,x,y,yprime,delta,cj,h,                            &
-     & ier,wt,e,wm,iwm,ires,uround,rpar,                        &
-     & ipar,ntemp)
-      cjold=cj
-      s = 100.d0
-      if (ires .lt. 0) go to 380
-      if(ier .ne. 0)go to 380
-      nsf=0
+!     CHANGE PHI TO PHI STAR
+      IF(KP1 .LT. NSP1) GO TO 280
+      DO 270 J=NSP1,KP1
+         DO 260 I=1,NEQ
+  260       PHI(I,J)=BETA(J)*PHI(I,J)
+  270    CONTINUE
+  280 CONTINUE
 !
-!
-!     initialize the error accumulation vector e.
-  340 continue
-      do 345 i=1,neq
-  345    e(i)=0.0d0
-!
-!
-!     corrector loop.
-  350 continue
-!
-!     multiply residual by temp1 to accelerate convergence
-      temp1 = 2.0d0/(1.0d0 + cj/cjold)
-      do 355 i = 1,neq
-  355   delta(i) = delta(i) * temp1
-!
-!     compute a new iterate (back-substitution).
-!     store the correction in delta.
-      call ddaslv(neq,delta,wm,iwm)
-!
-!     update y, e, and yprime
-      do 360 i=1,neq
-         y(i)=y(i)-delta(i)
-         e(i)=e(i)-delta(i)
-  360    yprime(i)=yprime(i)-cj*delta(i)
-!
-!     test for convergence of the iteration
-      delnrm=ddanrm(neq,delta,wt,rpar,ipar)
-      if (m .gt. 0) go to 365
-         if (delnrm .le. 100.d0*uround*pnorm) go to 375
-         oldnrm = delnrm
-         go to 367
-  365 rate = (delnrm/oldnrm)**(1.0d0/m)
-      if (rate .gt. 0.90d0) go to 370
-      s = rate/(1.0d0 - rate)
-  367 if (s*delnrm .le. 0.33d0) go to 375
-!
-!     the corrector has not yet converged.
-!     update m and test whether the
-!     maximum number of iterations have
-!     been tried.
-      m=m+1
-      if(m.ge.maxit)go to 370
-!
-!     evaluate the residual
-!     and go back to do another iteration
-      iwm(lnre)=iwm(lnre)+1
-      ires = 0
-      call eqn%res(x,y,yprime,delta,ires,                                   &
-     &  rpar,ipar)
-      if (ires .lt. 0) go to 380
-      go to 350
-!
-!
-!     the corrector failed to converge in maxit
-!     iterations. if the iteration matrix
-!     is not current,re-do the step with
-!     a new iteration matrix.
-  370 continue
-      if(jcalc.eq.0)go to 380
-      jcalc=-1
-      go to 300
-!
-!
-!     the iteration has converged.  if nonnegativity of solution is
-!     required, set the solution nonnegative, if the perturbation
-!     to do it is small enough.  if the change is too large, then
-!     consider the corrector iteration to have failed.
-  375 if(nonneg .eq. 0) go to 390
-      do 377 i = 1,neq
-  377    delta(i) = min(y(i),0.0d0)
-      delnrm = ddanrm(neq,delta,wt,rpar,ipar)
-      if(delnrm .gt. 0.33d0) go to 380
-      do 378 i = 1,neq
-  378    e(i) = e(i) - delta(i)
-      go to 390
-!
-!
-!     exits from block 3
-!     no convergence with current iteration
-!     matrix,or singular iteration matrix
-  380 convgd= .false.
-  390 jcalc = 1
-      if(.not.convgd)go to 600
+!     UPDATE TIME
+      X=X+H
 !
 !
 !
 !
 !
 !-----------------------------------------------------------------------
-!     block 4
-!     estimate the errors at orders k,k-1,k-2
-!     as if constant stepsize was used. estimate
-!     the local error at order k and test
-!     whether the current step is successful.
+!     BLOCK 3
+!     PREDICT THE SOLUTION AND DERIVATIVE,
+!     AND SOLVE THE CORRECTOR EQUATION
 !-----------------------------------------------------------------------
 !
-!     estimate errors at orders k,k-1,k-2
-      enorm = ddanrm(neq,e,wt,rpar,ipar)
-      erk = sigma(k+1)*enorm
-      terk = (k+1)*erk
-      est = erk
-      knew=k
-      if(k .eq. 1)go to 430
-      do 405 i = 1,neq
-  405   delta(i) = phi(i,kp1) + e(i)
-      erkm1=sigma(k)*ddanrm(neq,delta,wt,rpar,ipar)
-      terkm1 = k*erkm1
-      if(k .gt. 2)go to 410
-      if(terkm1 .le. 0.5d0*terk)go to 420
-      go to 430
-  410 continue
-      do 415 i = 1,neq
-  415   delta(i) = phi(i,k) + delta(i)
-      erkm2=sigma(k-1)*ddanrm(neq,delta,wt,rpar,ipar)
-      terkm2 = (k-1)*erkm2
-      if(max(terkm1,terkm2).gt.terk)go to 430
-!     lower the order
-  420 continue
-      knew=k-1
-      est = erkm1
+!     FIRST,PREDICT THE SOLUTION AND DERIVATIVE
+  300 CONTINUE
+      DO 310 I=1,NEQ
+         Y(I)=PHI(I,1)
+  310    YPRIME(I)=0.0D0
+      DO 330 J=2,KP1
+         DO 320 I=1,NEQ
+            Y(I)=Y(I)+PHI(I,J)
+  320       YPRIME(I)=YPRIME(I)+GAMMA(J)*PHI(I,J)
+  330 END DO
+      PNORM = DDANRM (NEQ,Y,WT,RPAR,IPAR)
 !
 !
-!     calculate the local error for the current step
-!     to see if the step was successful
-  430 continue
-      err = ck * enorm
-      if(err .gt. 1.0d0)go to 600
+!
+!     SOLVE THE CORRECTOR EQUATION USING A
+!     MODIFIED NEWTON SCHEME.
+      CONVGD= .TRUE.
+      M=0
+      IWM(LNRE)=IWM(LNRE)+1
+      IRES = 0
+      CALL problem%res(X,Y,YPRIME,DELTA,IRES,RPAR,IPAR)
+      IF (IRES .LT. 0) GO TO 380
+!
+!
+!     IF INDICATED,REEVALUATE THE
+!     ITERATION MATRIX PD = DG/DY + CJ*DG/DYPRIME
+!     (WHERE G(X,Y,YPRIME)=0). SET
+!     JCALC TO 0 AS AN INDICATOR THAT
+!     THIS HAS BEEN DONE.
+      IF(JCALC .NE. -1)GO TO 340
+      IWM(LNJE)=IWM(LNJE)+1
+      JCALC=0
+      CALL DDAJAC(PROBLEM,NEQ,X,Y,YPRIME,DELTA,CJ,H,                    &
+     & IER,WT,E,WM,IWM,IRES,UROUND,RPAR,                                &
+     & IPAR,NTEMP)
+      CJOLD=CJ
+      S = 100.D0
+      IF (IRES .LT. 0) GO TO 380
+      IF(IER .NE. 0)GO TO 380
+      NSF=0
+!
+!
+!     INITIALIZE THE ERROR ACCUMULATION VECTOR E.
+  340 CONTINUE
+      DO 345 I=1,NEQ
+  345    E(I)=0.0D0
+!
+!
+!     CORRECTOR LOOP.
+  350 CONTINUE
+!
+!     MULTIPLY RESIDUAL BY TEMP1 TO ACCELERATE CONVERGENCE
+      TEMP1 = 2.0D0/(1.0D0 + CJ/CJOLD)
+      DO 355 I = 1,NEQ
+  355   DELTA(I) = DELTA(I) * TEMP1
+!
+!     COMPUTE A NEW ITERATE (BACK-SUBSTITUTION).
+!     STORE THE CORRECTION IN DELTA.
+      CALL DDASLV(NEQ,DELTA,WM,IWM)
+!
+!     UPDATE Y, E, AND YPRIME
+      DO 360 I=1,NEQ
+         Y(I)=Y(I)-DELTA(I)
+         E(I)=E(I)-DELTA(I)
+  360    YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+!
+!     TEST FOR CONVERGENCE OF THE ITERATION
+      DELNRM=DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      IF (M .GT. 0) GO TO 365
+         IF (DELNRM .LE. 100.D0*UROUND*PNORM) GO TO 375
+         OLDNRM = DELNRM
+         GO TO 367
+  365 RATE = (DELNRM/OLDNRM)**(1.0D0/M)
+      IF (RATE .GT. 0.90D0) GO TO 370
+      S = RATE/(1.0D0 - RATE)
+  367 IF (S*DELNRM .LE. 0.33D0) GO TO 375
+!
+!     THE CORRECTOR HAS NOT YET CONVERGED.
+!     UPDATE M AND TEST WHETHER THE
+!     MAXIMUM NUMBER OF ITERATIONS HAVE
+!     BEEN TRIED.
+      M=M+1
+      IF(M.GE.MAXIT)GO TO 370
+!
+!     EVALUATE THE RESIDUAL
+!     AND GO BACK TO DO ANOTHER ITERATION
+      IWM(LNRE)=IWM(LNRE)+1
+      IRES = 0
+      CALL problem%res(X,Y,YPRIME,DELTA,IRES,RPAR,IPAR)
+      IF (IRES .LT. 0) GO TO 380
+      GO TO 350
+!
+!
+!     THE CORRECTOR FAILED TO CONVERGE IN MAXIT
+!     ITERATIONS. IF THE ITERATION MATRIX
+!     IS NOT CURRENT,RE-DO THE STEP WITH
+!     A NEW ITERATION MATRIX.
+  370 CONTINUE
+      IF(JCALC.EQ.0)GO TO 380
+      JCALC=-1
+      GO TO 300
+!
+!
+!     THE ITERATION HAS CONVERGED.  IF NONNEGATIVITY OF SOLUTION IS
+!     REQUIRED, SET THE SOLUTION NONNEGATIVE, IF THE PERTURBATION
+!     TO DO IT IS SMALL ENOUGH.  IF THE CHANGE IS TOO LARGE, THEN
+!     CONSIDER THE CORRECTOR ITERATION TO HAVE FAILED.
+  375 IF(NONNEG .EQ. 0) GO TO 390
+      DO 377 I = 1,NEQ
+  377    DELTA(I) = MIN(Y(I),0.0D0)
+      DELNRM = DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      IF(DELNRM .GT. 0.33D0) GO TO 380
+      DO 378 I = 1,NEQ
+  378    E(I) = E(I) - DELTA(I)
+      GO TO 390
+!
+!
+!     EXITS FROM BLOCK 3
+!     NO CONVERGENCE WITH CURRENT ITERATION
+!     MATRIX,OR SINGULAR ITERATION MATRIX
+  380 CONVGD= .FALSE.
+  390 JCALC = 1
+      IF(.NOT.CONVGD)GO TO 600
 !
 !
 !
 !
 !
 !-----------------------------------------------------------------------
-!     block 5
-!     the step is successful. determine
-!     the best order and stepsize for
-!     the next step. update the differences
-!     for the next step.
+!     BLOCK 4
+!     ESTIMATE THE ERRORS AT ORDERS K,K-1,K-2
+!     AS IF CONSTANT STEPSIZE WAS USED. ESTIMATE
+!     THE LOCAL ERROR AT ORDER K AND TEST
+!     WHETHER THE CURRENT STEP IS SUCCESSFUL.
 !-----------------------------------------------------------------------
-      idid=1
-      iwm(lnst)=iwm(lnst)+1
-      kdiff=k-kold
-      kold=k
-      hold=h
+!
+!     ESTIMATE ERRORS AT ORDERS K,K-1,K-2
+      ENORM = DDANRM(NEQ,E,WT,RPAR,IPAR)
+      ERK = SIGMA(K+1)*ENORM
+      TERK = (K+1)*ERK
+      EST = ERK
+      KNEW=K
+      IF(K .EQ. 1)GO TO 430
+      DO 405 I = 1,NEQ
+  405   DELTA(I) = PHI(I,KP1) + E(I)
+      ERKM1=SIGMA(K)*DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      TERKM1 = K*ERKM1
+      IF(K .GT. 2)GO TO 410
+      IF(TERKM1 .LE. 0.5D0*TERK)GO TO 420
+      GO TO 430
+  410 CONTINUE
+      DO 415 I = 1,NEQ
+  415   DELTA(I) = PHI(I,K) + DELTA(I)
+      ERKM2=SIGMA(K-1)*DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      TERKM2 = (K-1)*ERKM2
+      IF(MAX(TERKM1,TERKM2).GT.TERK)GO TO 430
+!     LOWER THE ORDER
+  420 CONTINUE
+      KNEW=K-1
+      EST = ERKM1
 !
 !
-!     estimate the error at order k+1 unless:
-!        already decided to lower order, or
-!        already using maximum order, or
-!        stepsize not constant, or
-!        order raised in previous step
-      if(knew.eq.km1.or.k.eq.iwm(lmxord))iphase=1
-      if(iphase .eq. 0)go to 545
-      if(knew.eq.km1)go to 540
-      if(k.eq.iwm(lmxord)) go to 550
-      if(kp1.ge.ns.or.kdiff.eq.1)go to 550
-      do 510 i=1,neq
-  510    delta(i)=e(i)-phi(i,kp2)
-      erkp1 = (1.0d0/(k+2))*ddanrm(neq,delta,wt,rpar,ipar)
-      terkp1 = (k+2)*erkp1
-      if(k.gt.1)go to 520
-      if(terkp1.ge.0.5d0*terk)go to 550
-      go to 530
-  520 if(terkm1.le.min(terk,terkp1))go to 540
-      if(terkp1.ge.terk.or.k.eq.iwm(lmxord))go to 550
-!
-!     raise order
-  530 k=kp1
-      est = erkp1
-      go to 550
-!
-!     lower order
-  540 k=km1
-      est = erkm1
-      go to 550
-!
-!     if iphase = 0, increase order by one and multiply stepsize by
-!     factor two
-  545 k = kp1
-      hnew = h*2.0d0
-      h = hnew
-      go to 575
-!
-!
-!     determine the appropriate stepsize for
-!     the next step.
-  550 hnew=h
-      temp2=k+1
-      r=(2.0d0*est+0.0001d0)**(-1.0d0/temp2)
-      if(r .lt. 2.0d0) go to 555
-      hnew = 2.0d0*h
-      go to 560
-  555 if(r .gt. 1.0d0) go to 560
-      r = max(0.5d0,min(0.9d0,r))
-      hnew = h*r
-  560 h=hnew
-!
-!
-!     update differences for next step
-  575 continue
-      if(kold.eq.iwm(lmxord))go to 585
-      do 580 i=1,neq
-  580    phi(i,kp2)=e(i)
-  585 continue
-      do 590 i=1,neq
-  590    phi(i,kp1)=phi(i,kp1)+e(i)
-      do 595 j1=2,kp1
-         j=kp1-j1+1
-         do 595 i=1,neq
-  595    phi(i,j)=phi(i,j)+phi(i,j+1)
-      return
+!     CALCULATE THE LOCAL ERROR FOR THE CURRENT STEP
+!     TO SEE IF THE STEP WAS SUCCESSFUL
+  430 CONTINUE
+      ERR = CK * ENORM
+      IF(ERR .GT. 1.0D0)GO TO 600
 !
 !
 !
 !
 !
 !-----------------------------------------------------------------------
-!     block 6
-!     the step is unsuccessful. restore x,psi,phi
-!     determine appropriate stepsize for
-!     continuing the integration, or exit with
-!     an error flag if there have been many
-!     failures.
+!     BLOCK 5
+!     THE STEP IS SUCCESSFUL. DETERMINE
+!     THE BEST ORDER AND STEPSIZE FOR
+!     THE NEXT STEP. UPDATE THE DIFFERENCES
+!     FOR THE NEXT STEP.
 !-----------------------------------------------------------------------
-  600 iphase = 1
-!
-!     restore x,phi,psi
-      x=xold
-      if(kp1.lt.nsp1)go to 630
-      do 620 j=nsp1,kp1
-         temp1=1.0d0/beta(j)
-         do 610 i=1,neq
-  610       phi(i,j)=temp1*phi(i,j)
-  620    continue
-  630 continue
-      do 640 i=2,kp1
-  640    psi(i-1)=psi(i)-h
+      IDID=1
+      IWM(LNST)=IWM(LNST)+1
+      KDIFF=K-KOLD
+      KOLD=K
+      HOLD=H
 !
 !
-!     test whether failure is due to corrector iteration
-!     or error test
-      if(convgd)go to 660
-      iwm(lctf)=iwm(lctf)+1
+!     ESTIMATE THE ERROR AT ORDER K+1 UNLESS:
+!        ALREADY DECIDED TO LOWER ORDER, OR
+!        ALREADY USING MAXIMUM ORDER, OR
+!        STEPSIZE NOT CONSTANT, OR
+!        ORDER RAISED IN PREVIOUS STEP
+      IF(KNEW.EQ.KM1.OR.K.EQ.IWM(LMXORD))IPHASE=1
+      IF(IPHASE .EQ. 0)GO TO 545
+      IF(KNEW.EQ.KM1)GO TO 540
+      IF(K.EQ.IWM(LMXORD)) GO TO 550
+      IF(KP1.GE.NS.OR.KDIFF.EQ.1)GO TO 550
+      DO 510 I=1,NEQ
+  510    DELTA(I)=E(I)-PHI(I,KP2)
+      ERKP1 = (1.0D0/(K+2))*DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
+      TERKP1 = (K+2)*ERKP1
+      IF(K.GT.1)GO TO 520
+      IF(TERKP1.GE.0.5D0*TERK)GO TO 550
+      GO TO 530
+  520 IF(TERKM1.LE.MIN(TERK,TERKP1))GO TO 540
+      IF(TERKP1.GE.TERK.OR.K.EQ.IWM(LMXORD))GO TO 550
+!
+!     RAISE ORDER
+  530 K=KP1
+      EST = ERKP1
+      GO TO 550
+!
+!     LOWER ORDER
+  540 K=KM1
+      EST = ERKM1
+      GO TO 550
+!
+!     IF IPHASE = 0, INCREASE ORDER BY ONE AND MULTIPLY STEPSIZE BY
+!     FACTOR TWO
+  545 K = KP1
+      HNEW = H*2.0D0
+      H = HNEW
+      GO TO 575
 !
 !
-!     the newton iteration failed to converge with
-!     a current iteration matrix.  determine the cause
-!     of the failure and take appropriate action.
-      if(ier.eq.0)go to 650
-!
-!     the iteration matrix is singular. reduce
-!     the stepsize by a factor of 4. if
-!     this happens three times in a row on
-!     the same step, return with an error flag
-      nsf=nsf+1
-      r = 0.25d0
-      h=h*r
-      if (nsf .lt. 3 .and. abs(h) .ge. hmin) go to 690
-      idid=-8
-      go to 675
+!     DETERMINE THE APPROPRIATE STEPSIZE FOR
+!     THE NEXT STEP.
+  550 HNEW=H
+      TEMP2=K+1
+      R=(2.0D0*EST+0.0001D0)**(-1.0D0/TEMP2)
+      IF(R .LT. 2.0D0) GO TO 555
+      HNEW = 2.0D0*H
+      GO TO 560
+  555 IF(R .GT. 1.0D0) GO TO 560
+      R = MAX(0.5D0,MIN(0.9D0,R))
+      HNEW = H*R
+  560 H=HNEW
 !
 !
-!     the newton iteration failed to converge for a reason
-!     other than a singular iteration matrix.  if ires = -2, then
-!     return.  otherwise, reduce the stepsize and try again, unless
-!     too many failures have occurred.
-  650 continue
-      if (ires .gt. -2) go to 655
-      idid = -11
-      go to 675
-  655 ncf = ncf + 1
-      r = 0.25d0
-      h = h*r
-      if (ncf .lt. 10 .and. abs(h) .ge. hmin) go to 690
-      idid = -7
-      if (ires .lt. 0) idid = -10
-      if (nef .ge. 3) idid = -9
-      go to 675
+!     UPDATE DIFFERENCES FOR NEXT STEP
+  575 CONTINUE
+      IF(KOLD.EQ.IWM(LMXORD))GO TO 585
+      DO 580 I=1,NEQ
+  580    PHI(I,KP2)=E(I)
+  585 CONTINUE
+      DO 590 I=1,NEQ
+  590    PHI(I,KP1)=PHI(I,KP1)+E(I)
+      DO 595 J1=2,KP1
+         J=KP1-J1+1
+         DO 595 I=1,NEQ
+  595    PHI(I,J)=PHI(I,J)+PHI(I,J+1)
+      RETURN
 !
 !
-!     the newton scheme converged, and the cause
-!     of the failure was the error estimate
-!     exceeding the tolerance.
-  660 nef=nef+1
-      iwm(letf)=iwm(letf)+1
-      if (nef .gt. 1) go to 665
-!
-!     on first error test failure, keep current order or lower
-!     order by one.  compute new stepsize based on differences
-!     of the solution.
-      k = knew
-      temp2 = k + 1
-      r = 0.90d0*(2.0d0*est+0.0001d0)**(-1.0d0/temp2)
-      r = max(0.25d0,min(0.9d0,r))
-      h = h*r
-      if (abs(h) .ge. hmin) go to 690
-      idid = -6
-      go to 675
-!
-!     on second error test failure, use the current order or
-!     decrease order by one.  reduce the stepsize by a factor of
-!     four.
-  665 if (nef .gt. 2) go to 670
-      k = knew
-      r = 0.25d0
-      h = r*h
-      if (abs(h) .ge. hmin) go to 690
-      idid = -6
-      go to 675
-!
-!     on third and subsequent error test failures, set the order to
-!     one and reduce the stepsize by a factor of four.
-  670 k = 1
-      r = 0.25d0
-      h = r*h
-      if (abs(h) .ge. hmin) go to 690
-      idid = -6
-      go to 675
 !
 !
-!     for all crashes, restore y to its last value,
-!     interpolate to find yprime at last x, and return
-  675 continue
-      call ddatrp(x,x,y,yprime,neq,k,phi,psi)
-      return
 !
-!
-!     go back and try this step again.
-!     if this is the first step, reset psi(1) and rescale phi(*,2).
-  690 if (kold .eq. 0) then
-        psi(1) = h
-        do 695 i = 1,neq
-  695     phi(i,2) = r*phi(i,2)
-        endif
-      go to 200
-!
-!------end of subroutine ddastp------
-      end subroutine ddastp
-!deck ddatrp
-      subroutine ddatrp (x, xout, yout, ypout, neq, kold, phi, psi)
-!***begin prologue  ddatrp
-!***subsidiary
-!***purpose  interpolation routine for ddassl.
-!***library   slatec (dassl)
-!***type      double precision (sdatrp-s, ddatrp-d)
-!***author  petzold, linda r., (llnl)
-!***description
 !-----------------------------------------------------------------------
-!     the methods in subroutine ddastp use polynomials
-!     to approximate the solution. ddatrp approximates the
-!     solution and its derivative at time xout by evaluating
-!     one of these polynomials, and its derivative,there.
-!     information defining this polynomial is passed from
-!     ddastp, so ddatrp cannot be used alone.
-!
-!     the parameters are:
-!     x     the current time in the integration.
-!     xout  the time at which the solution is desired
-!     yout  the interpolated approximation to y at xout
-!           (this is output)
-!     ypout the interpolated approximation to yprime at xout
-!           (this is output)
-!     neq   number of equations
-!     kold  order used on last successful step
-!     phi   array of scaled divided differences of y
-!     psi   array of past stepsize history
+!     BLOCK 6
+!     THE STEP IS UNSUCCESSFUL. RESTORE X,PSI,PHI
+!     DETERMINE APPROPRIATE STEPSIZE FOR
+!     CONTINUING THE INTEGRATION, OR EXIT WITH
+!     AN ERROR FLAG IF THERE HAVE BEEN MANY
+!     FAILURES.
 !-----------------------------------------------------------------------
-!***routines called  (none)
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!***end prologue  ddatrp
+  600 IPHASE = 1
 !
-      integer  neq, kold
-      double precision  x, xout, yout(*), ypout(*), phi(neq,*), psi(*)
+!     RESTORE X,PHI,PSI
+      X=XOLD
+      IF(KP1.LT.NSP1)GO TO 630
+      DO 620 J=NSP1,KP1
+         TEMP1=1.0D0/BETA(J)
+         DO 610 I=1,NEQ
+  610       PHI(I,J)=TEMP1*PHI(I,J)
+  620    CONTINUE
+  630 CONTINUE
+      DO 640 I=2,KP1
+  640    PSI(I-1)=PSI(I)-H
 !
-      integer  i, j, koldp1
-      double precision  c, d, gamma, temp1
 !
-!***first executable statement  ddatrp
-      koldp1=kold+1
-      temp1=xout-x
-      do 10 i=1,neq
-         yout(i)=phi(i,1)
-   10    ypout(i)=0.0d0
-      c=1.0d0
-      d=0.0d0
-      gamma=temp1/psi(1)
-      do 30 j=2,koldp1
-         d=d*gamma+c/psi(j-1)
-         c=c*gamma
-         gamma=(temp1+psi(j-1))/psi(j)
-         do 20 i=1,neq
-            yout(i)=yout(i)+c*phi(i,j)
-   20       ypout(i)=ypout(i)+d*phi(i,j)
-   30    continue
-      return
+!     TEST WHETHER FAILURE IS DUE TO CORRECTOR ITERATION
+!     OR ERROR TEST
+      IF(CONVGD)GO TO 660
+      IWM(LCTF)=IWM(LCTF)+1
 !
-!------end of subroutine ddatrp------
-      end subroutine ddatrp
-!deck ddawts
-      subroutine ddawts (neq, iwt, rtol, atol, y, wt, rpar, ipar)
-!***begin prologue  ddawts
-!***subsidiary
-!***purpose  set error weight vector for ddassl.
-!***library   slatec (dassl)
-!***type      double precision (sdawts-s, ddawts-d)
-!***author  petzold, linda r., (llnl)
-!***description
+!
+!     THE NEWTON ITERATION FAILED TO CONVERGE WITH
+!     A CURRENT ITERATION MATRIX.  DETERMINE THE CAUSE
+!     OF THE FAILURE AND TAKE APPROPRIATE ACTION.
+      IF(IER.EQ.0)GO TO 650
+!
+!     THE ITERATION MATRIX IS SINGULAR. REDUCE
+!     THE STEPSIZE BY A FACTOR OF 4. IF
+!     THIS HAPPENS THREE TIMES IN A ROW ON
+!     THE SAME STEP, RETURN WITH AN ERROR FLAG
+      NSF=NSF+1
+      R = 0.25D0
+      H=H*R
+      IF (NSF .LT. 3 .AND. ABS(H) .GE. HMIN) GO TO 690
+      IDID=-8
+      GO TO 675
+!
+!
+!     THE NEWTON ITERATION FAILED TO CONVERGE FOR A REASON
+!     OTHER THAN A SINGULAR ITERATION MATRIX.  IF IRES = -2, THEN
+!     RETURN.  OTHERWISE, REDUCE THE STEPSIZE AND TRY AGAIN, UNLESS
+!     TOO MANY FAILURES HAVE OCCURRED.
+  650 CONTINUE
+      IF (IRES .GT. -2) GO TO 655
+      IDID = -11
+      GO TO 675
+  655 NCF = NCF + 1
+      R = 0.25D0
+      H = H*R
+      IF (NCF .LT. 10 .AND. ABS(H) .GE. HMIN) GO TO 690
+      IDID = -7
+      IF (IRES .LT. 0) IDID = -10
+      IF (NEF .GE. 3) IDID = -9
+      GO TO 675
+!
+!
+!     THE NEWTON SCHEME CONVERGED, AND THE CAUSE
+!     OF THE FAILURE WAS THE ERROR ESTIMATE
+!     EXCEEDING THE TOLERANCE.
+  660 NEF=NEF+1
+      IWM(LETF)=IWM(LETF)+1
+      IF (NEF .GT. 1) GO TO 665
+!
+!     ON FIRST ERROR TEST FAILURE, KEEP CURRENT ORDER OR LOWER
+!     ORDER BY ONE.  COMPUTE NEW STEPSIZE BASED ON DIFFERENCES
+!     OF THE SOLUTION.
+      K = KNEW
+      TEMP2 = K + 1
+      R = 0.90D0*(2.0D0*EST+0.0001D0)**(-1.0D0/TEMP2)
+      R = MAX(0.25D0,MIN(0.9D0,R))
+      H = H*R
+      IF (ABS(H) .GE. HMIN) GO TO 690
+      IDID = -6
+      GO TO 675
+!
+!     ON SECOND ERROR TEST FAILURE, USE THE CURRENT ORDER OR
+!     DECREASE ORDER BY ONE.  REDUCE THE STEPSIZE BY A FACTOR OF
+!     FOUR.
+  665 IF (NEF .GT. 2) GO TO 670
+      K = KNEW
+      R = 0.25D0
+      H = R*H
+      IF (ABS(H) .GE. HMIN) GO TO 690
+      IDID = -6
+      GO TO 675
+!
+!     ON THIRD AND SUBSEQUENT ERROR TEST FAILURES, SET THE ORDER TO
+!     ONE AND REDUCE THE STEPSIZE BY A FACTOR OF FOUR.
+  670 K = 1
+      R = 0.25D0
+      H = R*H
+      IF (ABS(H) .GE. HMIN) GO TO 690
+      IDID = -6
+      GO TO 675
+!
+!
+!     FOR ALL CRASHES, RESTORE Y TO ITS LAST VALUE,
+!     INTERPOLATE TO FIND YPRIME AT LAST X, AND RETURN
+  675 CONTINUE
+      CALL DDATRP(X,X,Y,YPRIME,NEQ,K,PHI,PSI)
+      RETURN
+!
+!
+!     GO BACK AND TRY THIS STEP AGAIN.
+!     IF THIS IS THE FIRST STEP, RESET PSI(1) AND RESCALE PHI(*,2).
+  690 IF (KOLD .EQ. 0) THEN
+        PSI(1) = H
+        DO 695 I = 1,NEQ
+  695     PHI(I,2) = R*PHI(I,2)
+        ENDIF
+      GO TO 200
+!
+!------END OF SUBROUTINE DDASTP------
+      END subroutine ddastp
+!DECK DDATRP
+      SUBROUTINE DDATRP (X, XOUT, YOUT, YPOUT, NEQ, KOLD, PHI, PSI)
+!***BEGIN PROLOGUE  DDATRP
+!***SUBSIDIARY
+!***PURPOSE  Interpolation routine for DDASSL.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDATRP-S, DDATRP-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------------
-!     this subroutine sets the error weight vector
-!     wt according to wt(i)=rtol(i)*abs(y(i))+atol(i),
-!     i=1,-,n.
-!     rtol and atol are scalars if iwt = 0,
-!     and vectors if iwt = 1.
+!     THE METHODS IN SUBROUTINE DDASTP USE POLYNOMIALS
+!     TO APPROXIMATE THE SOLUTION. DDATRP APPROXIMATES THE
+!     SOLUTION AND ITS DERIVATIVE AT TIME XOUT BY EVALUATING
+!     ONE OF THESE POLYNOMIALS, AND ITS DERIVATIVE,THERE.
+!     INFORMATION DEFINING THIS POLYNOMIAL IS PASSED FROM
+!     DDASTP, SO DDATRP CANNOT BE USED ALONE.
+!
+!     THE PARAMETERS ARE:
+!     X     THE CURRENT TIME IN THE INTEGRATION.
+!     XOUT  THE TIME AT WHICH THE SOLUTION IS DESIRED
+!     YOUT  THE INTERPOLATED APPROXIMATION TO Y AT XOUT
+!           (THIS IS OUTPUT)
+!     YPOUT THE INTERPOLATED APPROXIMATION TO YPRIME AT XOUT
+!           (THIS IS OUTPUT)
+!     NEQ   NUMBER OF EQUATIONS
+!     KOLD  ORDER USED ON LAST SUCCESSFUL STEP
+!     PHI   ARRAY OF SCALED DIVIDED DIFFERENCES OF Y
+!     PSI   ARRAY OF PAST STEPSIZE HISTORY
 !-----------------------------------------------------------------------
-!***routines called  (none)
-!***revision history  (yymmdd)
-!   830315  date written
-!   901009  finished conversion to slatec 4.0 format (f.n.fritsch)
-!   901019  merged changes made by c. ulrich with slatec 4.0 format.
-!   901026  added explicit declarations for all variables and minor
-!           cosmetic changes to prologue.  (fnf)
-!***end prologue  ddawts
+!***ROUTINES CALLED  (NONE)
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!***END PROLOGUE  DDATRP
 !
-      integer  neq, iwt, ipar(*)
-      double precision  rtol(*), atol(*), y(*), wt(*), rpar(*)
+      INTEGER  NEQ, KOLD
+      DOUBLE PRECISION  X, XOUT, YOUT(*), YPOUT(*), PHI(NEQ,*), PSI(*)
 !
-      integer  i
-      double precision  atoli, rtoli
+      INTEGER  I, J, KOLDP1
+      DOUBLE PRECISION  C, D, GAMMA, TEMP1
 !
-!***first executable statement  ddawts
-      rtoli=rtol(1)
-      atoli=atol(1)
-      do 20 i=1,neq
-         if (iwt .eq.0) go to 10
-           rtoli=rtol(i)
-           atoli=atol(i)
-   10      wt(i)=rtoli*abs(y(i))+atoli
-   20      continue
-      return
-!-----------end of subroutine ddawts------------------------------------
-      end subroutine ddawts
-!deck xermsg
-      subroutine xermsg (librar, subrou, messg, nerr, level)
+!***FIRST EXECUTABLE STATEMENT  DDATRP
+      KOLDP1=KOLD+1
+      TEMP1=XOUT-X
+      DO 10 I=1,NEQ
+         YOUT(I)=PHI(I,1)
+   10    YPOUT(I)=0.0D0
+      C=1.0D0
+      D=0.0D0
+      GAMMA=TEMP1/PSI(1)
+      DO 30 J=2,KOLDP1
+         D=D*GAMMA+C/PSI(J-1)
+         C=C*GAMMA
+         GAMMA=(TEMP1+PSI(J-1))/PSI(J)
+         DO 20 I=1,NEQ
+            YOUT(I)=YOUT(I)+C*PHI(I,J)
+   20       YPOUT(I)=YPOUT(I)+D*PHI(I,J)
+   30    CONTINUE
+      RETURN
+!
+!------END OF SUBROUTINE DDATRP------
+      END subroutine ddatrp
+!DECK DDAWTS
+      SUBROUTINE DDAWTS (NEQ, IWT, RTOL, ATOL, Y, WT, RPAR, IPAR)
+!***BEGIN PROLOGUE  DDAWTS
+!***SUBSIDIARY
+!***PURPOSE  Set error weight vector for DDASSL.
+!***LIBRARY   SLATEC (DASSL)
+!***TYPE      DOUBLE PRECISION (SDAWTS-S, DDAWTS-D)
+!***AUTHOR  Petzold, Linda R., (LLNL)
+!***DESCRIPTION
 !-----------------------------------------------------------------------
-! subroutines xermsg, xsetf, xsetun, and the function routine ixsav, as
-! given here, constitute a simplified version of the slatec error
-! handling package.  written by a. c. hindmarsh, 18 november 1992.
+!     THIS SUBROUTINE SETS THE ERROR WEIGHT VECTOR
+!     WT ACCORDING TO WT(I)=RTOL(I)*ABS(Y(I))+ATOL(I),
+!     I=1,-,N.
+!     RTOL AND ATOL ARE SCALARS IF IWT = 0,
+!     AND VECTORS IF IWT = 1.
+!-----------------------------------------------------------------------
+!***ROUTINES CALLED  (NONE)
+!***REVISION HISTORY  (YYMMDD)
+!   830315  DATE WRITTEN
+!   901009  Finished conversion to SLATEC 4.0 format (F.N.Fritsch)
+!   901019  Merged changes made by C. Ulrich with SLATEC 4.0 format.
+!   901026  Added explicit declarations for all variables and minor
+!           cosmetic changes to prologue.  (FNF)
+!***END PROLOGUE  DDAWTS
 !
-! all arguments are input arguments.
-! librar = library name (character array).  prefixed to message.
-! subrou = routine name (character array).  prefixed to message.
-! messg  = the message (character array).
-! nerr   = integer error number.  prefixed to message.
-! level  = the error level..
+      INTEGER  NEQ, IWT, IPAR(*)
+      DOUBLE PRECISION  RTOL(*), ATOL(*), Y(*), WT(*), RPAR(*)
+!
+      INTEGER  I
+      DOUBLE PRECISION  ATOLI, RTOLI
+!
+!***FIRST EXECUTABLE STATEMENT  DDAWTS
+      RTOLI=RTOL(1)
+      ATOLI=ATOL(1)
+      DO 20 I=1,NEQ
+         IF (IWT .EQ.0) GO TO 10
+           RTOLI=RTOL(I)
+           ATOLI=ATOL(I)
+   10      WT(I)=RTOLI*ABS(Y(I))+ATOLI
+   20      CONTINUE
+      RETURN
+!-----------END OF SUBROUTINE DDAWTS------------------------------------
+      END subroutine ddawts
+!DECK XERMSG
+      SUBROUTINE XERMSG (LIBRAR, SUBROU, MESSG, NERR, LEVEL)
+!-----------------------------------------------------------------------
+! Subroutines XERMSG, XSETF, XSETUN, and the function routine IXSAV, as
+! given here, constitute a simplified version of the SLATEC error
+! handling package.  Written by A. C. Hindmarsh, 18 November 1992.
+!
+! All arguments are input arguments.
+! LIBRAR = Library name (character array).  Prefixed to message.
+! SUBROU = Routine name (character array).  Prefixed to message.
+! MESSG  = The message (character array).
+! NERR   = Integer error number.  Prefixed to message.
+! LEVEL  = The error level..
 !          0 or 1 means recoverable (control returns to caller).
 !          2 means fatal (run is aborted--see note below).
 !
-! note..  this routine has been simplified in the following ways..
-! 1. a single prefix line is printed with nerr, subrou, and librar.
-! 2. the message in messg is printed, unaltered, on lines of up to 72
-!    characters each using a format of (a).
-! 3. if level = 2, control passes to the statement   stop
-!    to abort the run.  this statement may be machine-dependent.
+! Note..  This routine has been simplified in the following ways..
+! 1. A single prefix line is printed with NERR, SUBROU, and LIBRAR.
+! 2. The message in MESSG is printed, unaltered, on lines of up to 72
+!    characters each using a format of (A).
+! 3. If LEVEL = 2, control passes to the statement   STOP
+!    to abort the run.  This statement may be machine-dependent.
 !
-! for a different default logical unit number, change the data
-! statement in function routine ixsav.
-! for a different run-abort command, change the statement following
+! For a different default logical unit number, change the data
+! statement in function routine IXSAV.
+! For a different run-abort command, change the statement following
 ! statement 100 at the end.
 !-----------------------------------------------------------------------
-! subroutines called by xermsg.. none
-! function routines called by xermsg.. ixsav
-! intrinsic function used by xermsg.. len
+! Subroutines called by XERMSG.. None
+! Function routines called by XERMSG.. IXSAV
+! Intrinsic function used by XERMSG.. LEN
 !-----------------------------------------------------------------------
-      character*(*) librar, subrou, messg
-      integer nerr, level
-      integer i1, i2, il, lenmsg, llen, lunit, mesflg, nlines
-      parameter (llen = 72)
+      CHARACTER*(*) LIBRAR, SUBROU, MESSG
+      INTEGER NERR, LEVEL
+      INTEGER I1, I2, IL, LENMSG, LLEN, LUNIT, MESFLG, NLINES
+      PARAMETER (LLEN = 72)
 !
-! get message print flag and logical unit number. ----------------------
-      lunit = ixsav (1, 0, .false.)
-      mesflg = ixsav (2, 0, .false.)
-      if (mesflg .eq. 0) go to 100
-! write nerr, subrou, and librar. --------------------------------------
-      i1 = len(subrou)
-      i2 = len(librar)
-      write (lunit, 10) nerr, subrou(1:i1), librar(1:i2)
-   10 format(/,'***error number ',i6,' from ',a,' in library ',a,'***')
-! write the message. ---------------------------------------------------
-      lenmsg = len(messg)
-      nlines = ( (lenmsg - 1)/llen ) + 1
-      do 20 il = 1,nlines
-        i1 = 1 + (il - 1)*llen
-        i2 = min(il*llen,lenmsg)
-        write (lunit,'(a)') messg(i1:i2)
-   20   continue
-! abort the run if level = 2. ------------------------------------------
-  100 if (level .ne. 2) return
-      stop
-!----------------------- end of subroutine xermsg ----------------------
-      end subroutine xermsg
-!deck xsetun
-      subroutine xsetun (lun)
+! Get message print flag and logical unit number. ----------------------
+      LUNIT = IXSAV (1, 0, .FALSE.)
+      MESFLG = IXSAV (2, 0, .FALSE.)
+      IF (MESFLG .EQ. 0) GO TO 100
+! Write NERR, SUBROU, and LIBRAR. --------------------------------------
+      I1 = LEN(SUBROU)
+      I2 = LEN(LIBRAR)
+      WRITE (LUNIT, 10) NERR, SUBROU(1:I1), LIBRAR(1:I2)
+   10 FORMAT(/,'***Error number ',I6,' from ',A,' in library ',A,'***')
+! Write the message. ---------------------------------------------------
+      LENMSG = LEN(MESSG)
+      NLINES = ( (LENMSG - 1)/LLEN ) + 1
+      DO 20 IL = 1,NLINES
+        I1 = 1 + (IL - 1)*LLEN
+        I2 = MIN(IL*LLEN,LENMSG)
+        WRITE (LUNIT,'(A)') MESSG(I1:I2)
+   20   CONTINUE
+! Abort the run if LEVEL = 2. ------------------------------------------
+  100 IF (LEVEL .NE. 2) RETURN
+      STOP
+!----------------------- End of Subroutine XERMSG ----------------------
+      END subroutine xermsg
+!DECK XSETUN
+      SUBROUTINE XSETUN (LUN)
 !-----------------------------------------------------------------------
-! this routine resets the logical unit number for messages.
+! This routine resets the logical unit number for messages.
 !
-! subroutines called by xsetun.. none
-! function routine called by xsetun.. ixsav
+! Subroutines called by XSETUN.. None
+! Function routine called by XSETUN.. IXSAV
 !-----------------------------------------------------------------------
-      integer lun, junk
+      INTEGER LUN, JUNK
 !
-      if (lun .gt. 0) junk = ixsav (1,lun,.true.)
-      return
-!----------------------- end of subroutine xsetun ----------------------
-      end subroutine xsetun
-!deck xsetf
-      subroutine xsetf (mflag)
+      IF (LUN .GT. 0) JUNK = IXSAV (1,LUN,.TRUE.)
+      RETURN
+!----------------------- End of Subroutine XSETUN ----------------------
+      END subroutine xsetun
+!DECK XSETF
+      SUBROUTINE XSETF (MFLAG)
 !-----------------------------------------------------------------------
-! this routine resets the print control flag mflag.
+! This routine resets the print control flag MFLAG.
 !
-! subroutines called by xsetf.. none
-! function routine called by xsetf.. ixsav
+! Subroutines called by XSETF.. None
+! Function routine called by XSETF.. IXSAV
 !-----------------------------------------------------------------------
-      integer mflag, junk
+      INTEGER MFLAG, JUNK
 !
-      if (mflag .eq. 0 .or. mflag .eq. 1) junk = ixsav (2,mflag,.true.)
-      return
-!----------------------- end of subroutine xsetf -----------------------
-      end subroutine xsetf
-!deck ixsav
-      integer function ixsav (ipar, ivalue, iset)
-      logical iset
-      integer ipar, ivalue
+      IF (MFLAG .EQ. 0 .OR. MFLAG .EQ. 1) JUNK = IXSAV (2,MFLAG,.TRUE.)
+      RETURN
+!----------------------- End of Subroutine XSETF -----------------------
+      END subroutine xsetf
+!DECK IXSAV
+      INTEGER FUNCTION IXSAV (IPAR, IVALUE, ISET)
+      LOGICAL ISET
+      INTEGER IPAR, IVALUE
 !-----------------------------------------------------------------------
-! ixsav saves and recalls one of two error message parameters:
-!   lunit, the logical unit number to which messages are printed, and
-!   mesflg, the message print flag.
-! this is a modification of the slatec library routine j4save.
+! IXSAV saves and recalls one of two error message parameters:
+!   LUNIT, the logical unit number to which messages are printed, and
+!   MESFLG, the message print flag.
+! This is a modification of the SLATEC library routine J4SAVE.
 !
-! saved local variables..
-!  lunit  = logical unit number for messages.
-!           the default is 6 (machine-dependent).
-!  mesflg = print control flag..
+! Saved local variables..
+!  LUNIT  = Logical unit number for messages.
+!           The default is 6 (machine-dependent).
+!  MESFLG = Print control flag..
 !           1 means print all messages (the default).
 !           0 means no printing.
 !
-! on input..
-!   ipar   = parameter indicator (1 for lunit, 2 for mesflg).
-!   ivalue = the value to be set for the parameter, if iset = .true.
-!   iset   = logical flag to indicate whether to read or write.
-!            if iset = .true., the parameter will be given
-!            the value ivalue.  if iset = .false., the parameter
-!            will be unchanged, and ivalue is a dummy argument.
+! On input..
+!   IPAR   = Parameter indicator (1 for LUNIT, 2 for MESFLG).
+!   IVALUE = The value to be set for the parameter, if ISET = .TRUE.
+!   ISET   = Logical flag to indicate whether to read or write.
+!            If ISET = .TRUE., the parameter will be given
+!            the value IVALUE.  If ISET = .FALSE., the parameter
+!            will be unchanged, and IVALUE is a dummy argument.
 !
-! on return..
-!   ixsav = the (old) value of the parameter.
+! On return..
+!   IXSAV = The (old) value of the parameter.
 !
-! subroutines/functions called by ixsav.. none
+! Subroutines/functions called by IXSAV.. None
 !-----------------------------------------------------------------------
-      integer lunit, mesflg
+      INTEGER LUNIT, MESFLG
 !-----------------------------------------------------------------------
-! the following fortran-77 declaration is to cause the values of the
+! The following Fortran-77 declaration is to cause the values of the
 ! listed (local) variables to be saved between calls to this routine.
 !-----------------------------------------------------------------------
-      save lunit, mesflg
-      data lunit/6/, mesflg/1/
+      SAVE LUNIT, MESFLG
+      DATA LUNIT/6/, MESFLG/1/
 !
-      if (ipar .eq. 1) then
-        ixsav = lunit
-        if (iset) lunit = ivalue
-        endif
+      IF (IPAR .EQ. 1) THEN
+        IXSAV = LUNIT
+        IF (ISET) LUNIT = IVALUE
+        ENDIF
 !
-      if (ipar .eq. 2) then
-        ixsav = mesflg
-        if (iset) mesflg = ivalue
-        endif
+      IF (IPAR .EQ. 2) THEN
+        IXSAV = MESFLG
+        IF (ISET) MESFLG = IVALUE
+        ENDIF
 !
-      return
-!----------------------- end of function ixsav -------------------------
-      end function ixsav
-
-
-!deck d1mach
-      double precision function d1mach (i)
-      implicit none
-      integer :: i
-      double precision :: b, x
-!***begin prologue  d1mach
-!***purpose  return floating point machine dependent constants.
-!***library   slatec
-!***category  r1
-!***type      single precision (d1mach-s, d1mach-d)
-!***keywords  machine constants
-!***author  fox, p. a., (bell labs)
-!           hall, a. d., (bell labs)
-!           schryer, n. l., (bell labs)
-!***description
-!
-!   d1mach can be used to obtain machine-dependent parameters for the
-!   local machine environment.  it is a function subprogram with one
-!   (input) argument, and can be referenced as follows:
-!
-!        a = d1mach(i)
-!
-!   where i=1,...,5.  the (output) value of a above is determined by
-!   the (input) value of i.  the results for various values of i are
-!   discussed below.
-!
-!   d1mach(1) = b**(emin-1), the smallest positive magnitude.
-!   d1mach(2) = b**emax*(1 - b**(-t)), the largest magnitude.
-!   d1mach(3) = b**(-t), the smallest relative spacing.
-!   d1mach(4) = b**(1-t), the largest relative spacing.
-!   d1mach(5) = log10(b)
-!
-!   assume single precision numbers are represented in the t-digit,
-!   base-b form
-!
-!              sign (b**e)*( (x(1)/b) + ... + (x(t)/b**t) )
-!
-!   where 0 .le. x(i) .lt. b for i=1,...,t, 0 .lt. x(1), and
-!   emin .le. e .le. emax.
-!
-!   the values of b, t, emin and emax are provided in i1mach as
-!   follows:
-!   i1mach(10) = b, the base.
-!   i1mach(11) = t, the number of base-b digits.
-!   i1mach(12) = emin, the smallest exponent e.
-!   i1mach(13) = emax, the largest exponent e.
-!
-!
-!***references  p. a. fox, a. d. hall and n. l. schryer, framework for
-!                 a portable library, acm transactions on mathematical
-!                 software 4, 2 (june 1978), pp. 177-188.
-!***routines called  xermsg
-!***revision history  (yymmdd)
-!   790101  date written
-!   960329  modified for fortran 90 (be after suggestions by ehg)
-!***end prologue  d1mach
-!
-      x = 1.0d0
-      b = radix(x)
-      select case (i)
-        case (1)
-          d1mach = b**(minexponent(x)-1) ! the smallest positive magnitude.
-        case (2)
-          d1mach = huge(x)               ! the largest magnitude.
-        case (3)
-          d1mach = b**(-digits(x))       ! the smallest relative spacing.
-        case (4)
-          d1mach = b**(1-digits(x))      ! the largest relative spacing.
-        case (5)
-          d1mach = log10(b)
-        case default
-          write (*, fmt = 9000)
- 9000     format ('1error    1 in d1mach - i out of bounds')
-          stop
-      end select
-      return
-      end function d1mach
-
+      RETURN
+!----------------------- End of Function IXSAV -------------------------
+      END function ixsav
 end module ddassl_mod

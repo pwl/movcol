@@ -1,0 +1,15 @@
+linpack/*
+ex1
+*.o
+*.mod
+*.gz
+*.log
+*.out
+*.dat
+convert
+*.f
+*.old
+*.111
+.#*
+*.a
+makefile.inc

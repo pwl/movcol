@@ -1,6 +1,6 @@
-FC=ifort -stand f08 -llapack -lblas -debug all -traceback -u\
+FC=ifort -stand f08 -llapack -lblas -p -g -traceback -u\
 	 -gen-interfaces -check all -warn declarations\
-	 -warn interfaces -warn usage
+	 -warn interfaces -warn usage -fp-model strict
 FC77=ifort -llapack -lblas -O
 
 ex1: movcol
