@@ -137,17 +137,18 @@ contains
   ! the code is generating a mesh           when index < 0
   !-----
   !
-  subroutine defout (eqn, npde, npts, t, xmesh, xmesht, u, ux, ut, tstep,&
+  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, tstep,&
        touta, ntouta, istop, index, nts)
     class(my_problem) :: eqn
-    integer :: npts, npde, ntouta, istop, index, nts
-    real(8), dimension(npts, npde) :: u,  ux, ut
-    real(8), dimension(npts)       :: xmesh, xmesht
+    integer :: ntouta, istop, index, nts
+    real(8), dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+    real(8), dimension(eqn%npts)       :: xmesh, xmesht
     real(8), dimension(ntouta)     :: touta
     real(8)                        :: t, tstep
 
     real(8) :: x, uval, uexac
-    integer :: n, i
+    integer :: n, i, npts
+    npts = eqn%npts
 
     !
     !-----
@@ -263,25 +264,25 @@ program ex1
   type(my_problem) :: my_eqn
 
   ! size of mesh and equation number
-  npde  =  1
-  npts  = 41
-
-  ! initialize solver
-  call my_eqn%init(npde,npts)
+  my_eqn%npde  =  1
+  my_eqn%npts  = 41
 
   ! set the parameters
   my_eqn%left_end  = 0.0_8
   my_eqn%right_end = 1.0_8
 
   ! error tolerances
-  atol = 1.d-3
-  rtol = 1.d-5
+  my_eqn%atol = 1.d-3
+  my_eqn%rtol = 1.d-5
 
   ! output times
-  allocate(touta(4))
-  touta = [0.00_8, 0.25_8, 0.55_8, 1.00_8]
+  allocate(my_eqn%touta(4))
+  my_eqn%touta = [0.00_8, 0.25_8, 0.55_8, 1.00_8]
+
+  ! initialize solver
+  call my_eqn%init()
 
   ! solve the equations
-  call my_eqn%solve(atol, rtol, touta, iflag, "soln.dat")
+  call my_eqn%solve("soln.dat")
 
 end program ex1

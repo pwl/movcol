@@ -24,34 +24,59 @@ module movcol_mod
 
   private
 
+  type :: temp_storage
+     ! of size npde
+     real(8), allocatable, dimension(:)   :: u, ux, uxx, ut, uxt, rw
+     ! of size npts
+     real(8), allocatable, dimension(:)   :: xmesh, xmesht
+     ! of size npts x npde
+     real(8), allocatable, dimension(:,:) :: uu, uux, uut
+     ! work array for ddassl
+     real(8), allocatable, dimension(:)   :: ddassl_work
+     ! work arrays for movcol
+     real(8), allocatable, dimension(:) :: movcol_rwork(:)
+     integer, allocatable, dimension(:) :: movcol_iwork(:)
+  end type temp_storage
+
+
   type, abstract, public, extends(problem_ddassl) :: problem_movcol
      ! work arrays
-     real(8), allocatable, private :: rwork(:)
-     integer, allocatable, private :: iwork(:)
+     type(temp_storage), private :: tmp
 
      ! pointers to the physical quantities
-     real(8), pointer :: x(:), u(:,:), ux(:,:), y(:,:), ydot(:,:)
+     real(8), pointer     :: x(:), u(:,:), ux(:,:)
+     real(8), allocatable :: y(:,:), ydot(:,:)
+     ! flat counterparts to y and ydot
+     real(8), pointer     :: y_flat(:), ydot_flat(:)
 
      ! print times
      real(8), allocatable :: touta(:)
 
      ! parameters
-     real(8) :: par(20)            !I don't know why par has size 20
-     real(8), pointer :: job       !par(1)
-     real(8), pointer :: output    !par(2)
-     real(8), pointer :: mmpde     !par(3)
-     real(8), pointer :: tau       !par(4)
-     real(8), pointer :: gamma     !par(5)
-     real(8), pointer :: ip        !par(6)
-     real(8), pointer :: stpmax    !par(7)
-     real(8), pointer :: left_end  !par(8)
-     real(8), pointer :: right_end !par(9)
+     integer :: job       = 2     !par(1)
+     integer :: output    = -1    !par(2)
+     integer :: mmpde     = 4     !par(3)
+     real(8) :: tau       = 1e-4_8!par(4)
+     real(8) :: gamma     = 1.0_8 !par(5)
+     integer :: ip        = 2.0_8 !par(6)
+     real(8) :: stpmax    = 1.0_8/epsilon(0.0_8) !par(7)
+     real(8) :: left_end  = 0.0_8 !par(8)
+     real(8) :: right_end = 1.0_8 !par(9)
+
+     ! relative and absolute error tolerances
+     real(8) :: rtol = -1.0_8, atol = -1.0_8
 
      ! system size and number of mesh points
      integer :: npts, npde
 
+     ! error flags
+     integer :: iflag = 0
+     integer :: idid
+
      ! output file id
      integer :: nprnt = 111
+     ! information is written to this unit
+     integer :: inform = 6
    contains
      private
 
@@ -61,7 +86,7 @@ module movcol_mod
      procedure, public :: init => movcol_init
 
      ! other private  procedures
-     procedure :: movcol
+     procedure :: movcl1
      procedure :: slnout
      procedure :: respde
      procedure :: respd1
@@ -88,12 +113,13 @@ module movcol_mod
        real(8) :: x, u(eqn%npde), ux(eqn%npde)
      end subroutine defivs_i
 
-     subroutine defout_i (eqn, npde, npts, t, xmesh, xmesht, u, ux, ut, tstep,&
+     subroutine defout_i (eqn, t, xmesh, xmesht, u, ux, ut, tstep,&
           touta, ntouta, istop, index, nts)
        import problem_movcol
        class(problem_movcol)          :: eqn
-       real(8), dimension(npts, npde) :: u,  ux, ut
-       real(8), dimension(npts)       :: xmesh, xmesht
+       integer                        :: ntouta, istop, nts, index
+       real(8), dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+       real(8), dimension(eqn%npts)       :: xmesh, xmesht
        real(8), dimension(ntouta)     :: touta
        real(8)                        :: t, tstep
      end subroutine defout_i
@@ -140,88 +166,206 @@ module movcol_mod
   contains
 
     ! allocate the work tables
-    subroutine movcol_init(eqn, npde, npts)
+    subroutine movcol_init(eqn)
       class(problem_movcol), target :: eqn
+
       integer :: npde, npts
 
       ! length of work arrays
-      integer :: lrw, liw
-
-      ! ipmax?
-      integer :: ipmax = 4
+      integer :: liw
 
       ! number of dependent values per mesh point
       integer :: m
 
-      eqn%npde  = npde
-      eqn%npts  = npts
+      ! total number of equations for ddassl
+      integer :: neq
 
-      lrw = 60 + 6 * npde+ (22 + 3 * ipmax) * npts&
-           & + (55 +  12 * ipmax) * npts * npde&
-           & + (24 + 12 * ipmax) * npts * npde**2
-      liw = 20 + npts + 2 * npts * npde
+      ! size of ddassl workarray and movcol workarrays
+      integer :: lrw0, lrw1
 
-      allocate(eqn%rwork(lrw))
-      allocate(eqn%iwork(liw))
+      !
+      !...check basic parameters job, inform, mmpde, tau, gamma, ip and
+      !...stpmax. if their values are not within the permitted ranges,
+      !...default values are set and iflag = 1.
+      !
+      eqn%iflag = 0
+
+      if(all(eqn%job /= [1,2,3])) then
+         eqn%iflag = 1
+         print *, "job has to be [1,2,3]"
+         return
+      end if
+      !
+      if(all(eqn%mmpde /= [1,2,3,4])) then
+         eqn%iflag = 1
+         print *, "mmpde has to be [1,2,3,4]"
+         return
+      end if
+      !
+      if(eqn%ip <= 0) then
+         eqn%iflag = 1
+         print *, "ip <= 0"
+         return
+      endif
+      !
+      if(eqn%stpmax <= 0) then
+         eqn%iflag = 1
+         print *, "stpmax <= 0"
+         return
+      endif
+      !
+      !...check basic parameters npde, npts, atol, rtol, ntouta,
+      !...xl and xr
+      !
+      if (eqn%npde <= 0) then
+         eqn%iflag = - 1
+         print *, "npde <= 0"
+         return
+      end if
+
+      if (eqn%npts.le.0) then
+         eqn%iflag = - 1
+         print *, "npts <= 0"
+         return
+      end if
+
+      if (abs (eqn%atol) + abs (eqn%rtol) .le. epsilon(0.0_8)) then
+         eqn%iflag = - 1
+         print *, "|atol| + |rtol| <= epsilon"
+         return
+      end if
+
+      if (eqn%job.eq.2.or.eqn%job.eq.3) then
+         if (eqn%left_end .gt. eqn%right_end) then
+            eqn%iflag = - 1
+            print *, "job = 2 or 3 and left_end > right_end"
+            return
+         end if
+      endif
+      !
+      !...if iflag = - 1, at least one of the parameters npde, npts,
+      !...atol, rtol and ntouta has been incorrectly input, so the
+      !...computation is halted
+      !
+      if (eqn%iflag.eq. - 1) then
+         write (eqn%inform, 99910) eqn%iflag
+         write (eqn%inform, 99990) eqn%npde, eqn%npts, eqn%job, eqn%output, eqn%mmpde, eqn%tau,     &
+         eqn%gamma, eqn%ip, eqn%atol, eqn%rtol, eqn%stpmax
+         return
+      endif
+
+      npde  = eqn%npde
+      npts  = eqn%npts
+
+      m = 2*npde+1
+
+      liw = 20 + npts*m
+
+
+      ! allocate the ddassl work array
+      neq = (2 * npde+1) * npts
+      if (eqn%mmpde == 2 .or. eqn%mmpde == 3) then
+         lrw0 = 40 + 12 * neq + 3 * (eqn%ip + 2) * (2 * npde+1) * neq
+      else
+         lrw0 = 40 + 12 * neq + 3 * (0 + 2) * (2 * npde+1) * neq
+      endif
+      allocate(eqn%tmp%ddassl_work(lrw0))
+
+      ! allocate the work array with a size decreased by double the
+      ! size of eqn%y and eqn%ydot
+      lrw1 = 20 + 6 * npde+ (3 * npde+2) * npts
+      allocate(eqn%tmp%movcol_rwork(lrw1))
+      allocate(eqn%tmp%movcol_iwork(liw))
 
       ! initialize work arrays with zeroes
-      eqn%rwork = 0.0_8
-      eqn%iwork = 0
-
+      eqn%tmp%movcol_rwork = 0.0_8
+      eqn%tmp%movcol_iwork = 0
 
       ! if the touta table was not allocate, allocate it as an empty table
       if(.not. allocated(eqn%touta)) then
          allocate(eqn%touta(0))
       end if
 
-      ! arrange the parameter pointers
-      eqn%job       => eqn%par(1)
-      eqn%output    => eqn%par(2)
-      eqn%mmpde     => eqn%par(3)
-      eqn%tau       => eqn%par(4)
-      eqn%gamma     => eqn%par(5)
-      eqn%ip        => eqn%par(6)
-      eqn%stpmax    => eqn%par(7)
-      eqn%left_end  => eqn%par(8)
-      eqn%right_end => eqn%par(9)
+      allocate(eqn%y   (m,npts))
+      allocate(eqn%ydot(m,npts))
 
-      ! set the default values for parameters
-      ! set the whole table to -1
-      eqn%par       = -1
-      ! then set the particular parameters
-      eqn%output    = 6         !par(2)
-      eqn%left_end  = 0         !par(8)
-      eqn%right_end = 1         !par(9)
+      ! flat counterparts to y and ydot
+      eqn%y_flat(1:m*npts) => eqn%y
+      eqn%ydot_flat(1:m*npts) => eqn%ydot
 
-      m = 2*npde+1
-      eqn%y   (1:m,1:npts) => eqn%rwork(1       :  m*npts)
-      eqn%ydot(1:m,1:npts) => eqn%rwork(m*npts+1:2*npts*m)
+      ! eqn%y   (1:m,1:npts) => eqn%rwork(1       :  m*npts)
+      ! eqn%ydot(1:m,1:npts) => eqn%rwork(m*npts+1:2*npts*m)
 
       eqn%x  => eqn%y(m,            :)
       eqn%u  => eqn%y(1:npde,       :)
       eqn%ux => eqn%y(npde+1:2*npde,:)
 
+      ! temporary storage, should replace the work arrays
+      allocate(eqn%tmp%u(npde))         !rwk1(m11+1)
+      allocate(eqn%tmp%ux(npde))        !rwk1(m12+1)
+      allocate(eqn%tmp%uxx(npde))       !rwk1(m13+1)
+      allocate(eqn%tmp%ut(npde))        !rwk1(m14+1)
+      allocate(eqn%tmp%uxt(npde))       !rwk1(m15+1)
+      allocate(eqn%tmp%rw(npde))        !rwk1(m16+1)
+      allocate(eqn%tmp%xmesh(npts))     !rwk1(m21+1)
+      allocate(eqn%tmp%xmesht(npts))    !rwk1(m22+1)
+      allocate(eqn%tmp%uu(npts,npde))   !rwk1(m31+1)
+      allocate(eqn%tmp%uux(npts,npde))  !rwk1(m32+1)
+      allocate(eqn%tmp%uut(npts,npde))  !rwk1(m33+1)
+
+!
+99910 format(                                                           &
+     &/' *****************************************************'         &
+     &/' iflag = ',i3                                                   &
+     &/' halt......at least one of the parameters npde, npts'           &
+     &/' atol, rtol, ntouta, xl, and xr is incorrectly input.'          &
+     &/' they must satisfy :'                                           &
+     &/' npde >= 1                    npts >= 1'                        &
+     &/' |atol| + |rtol| > 0          ntouta >= 2'                      &
+     &/' xl <= xr (when job = 2 and 3)'                                 &
+     &/' *****************************************************'/)
+99920 format(                                                           &
+     &/' *****************************************************'         &
+     &/' iflag = ',i3                                                   &
+     &/' halt......at least one of the workspace arrays rwork'          &
+     &/' and iwork has insufficient length. check the values'           &
+     &/' of lrw and liw. also check the values for npde, npts'          &
+     &/' and ip := par(6)'                                              &
+     &/' *****************************************************'/)
+99990 format(                                                           &
+     &/' *****************************************************'         &
+     &/'  npde =',i12,'  npts =',i12,                                   &
+     &'   job =',i12,' inform=', i10                                    &
+     &/' mmpde =',i12,'   tau =',e12.5,                                 &
+     &' gamma =',e12.5,'    ip =',i10                                   &
+     &/'  atol =',e12.5,'  rtol =', e12.5,                              &
+     &' stpmax=',e12.4,' ntouta=',i10                                   &
+     &/' *****************************************************'/)
+
     end subroutine movcol_init
 
-    subroutine movcol_solve(eqn, atol, rtol, touta, iflag, filename)
+    subroutine movcol_solve(eqn, filename)
       class(problem_movcol) :: eqn
-      real(8) :: atol, rtol, touta(:)
-      integer :: iflag
       character(len=*) :: filename
 
-      real :: tcpu, timaray(2)
+      real :: tcpu, tcpu1, tcpu2, timaray(2)
+
+      if( eqn%iflag /= 0 ) then
+         print *, "ERROR: cannot start solver, check iflag"
+         return
+      end if
 
       open(newunit = eqn%nprnt, file = filename)
 
-      tcpu = etime (timaray)
+      call etime (timaray, tcpu1)
 
-      call eqn%movcol(&
-           &atol   = atol,&
-           &rtol   = rtol,&
-           &touta  = touta,&
-           &iflag  = iflag)
+      !
+      !...call movcl1
+      !
+      call eqn%movcl1()
 
-      tcpu = etime (timaray) - tcpu
+      call etime(timaray, tcpu2)
+      tcpu = tcpu2 - tcpu1
 
       !-----
       ! output cpu times
@@ -637,7 +781,7 @@ module movcol_mod
 !
 !           this subroutine provides the value of the k_th component
 !           of the solution and its first spatial derivative at x,
-      subroutine movcol (eqn, atol, rtol, touta, iflag)
+      ! subroutine movcol (eqn, atol, rtol, touta, iflag)
 !           using a cubic hermite spline which interpolates the
 !           given solution values (u and ux) at mesh points (xmesh)
 !           (see defout). it is provided for convenient user
@@ -690,180 +834,18 @@ module movcol_mod
 !...of workspace arrays and calls the main subroutine movcl1
 !
 !
-      implicit real (8)(a - h, o - z)
-      real(8) :: rtol, atol
-      class(problem_movcol), target :: eqn
-      real(8) :: touta(:)
-
-      integer :: liw, lrw, ntouta, npts, npde, i
-      real(8) :: tau
-      real(8), pointer :: par(:), rwork(:)
-      integer, pointer :: iwork(:)
-
-      par   => eqn%par
-      iwork => eqn%iwork
-      rwork => eqn%rwork
-
-      ntouta = size(touta)
-      liw = size(iwork)
-      lrw = size(rwork)
-      npts = eqn%npts
-      npde = eqn%npde
-!
-      zrmch = epsilon(dum)
-      iflag = 0
-!
-!...check basic parameters job, inform, mmpde, tau, gamma, ip and
-!...stpmax. if their values are not within the permitted ranges,
-!...default values are set and iflag = 1.
-!
-      job = par (1) + zrmch
-      if (par (1) .le. - zrmch) job = - 1
-      if (job.le.0.or.job.ge.4) then
-         iflag = 1
-         job = 2
-      endif
-!
-      inform = par (2) + zrmch
-      if (par (2) .le. - zrmch) inform = - 1
-      if (inform.le.0) then
-         iflag = 1
-         inform = 6
-      endif
-!
-      mmpde = par (3) + zrmch
-      if (par (3) .le. - zrmch) mmpde = - 1
-      if (mmpde.le.0.or.mmpde.ge.5) then
-         iflag = 1
-         mmpde = 4
-      endif
-!
-      tau = par (4) + zrmch
-      if (tau.le.zero) then
-         iflag = 1
-         tau = tau1
-      endif
-!
-      gamma = par (5) + zrmch
-      if (gamma.le.zero) then
-         iflag = 1
-         gamma = one
-      endif
-!
-      ip = par (6) + zrmch
-      if (par (6) .le. - zrmch) ip = - 1
-      if (ip.lt.0) then
-         iflag = 1
-         ip = 2
-      endif
-!
-      stpmax = par (7)
-      if (stpmax.le.zrmch) then
-         iflag = 1
-         stpmax = one / zrmch
-      endif
-!
-!...check basic parameters npde, npts, atol, rtol, ntouta,
-!...xl and xr
-!
-      if (npde.le.0) iflag = - 1
-      if (npts.le.0) iflag = - 1
-      if (abs (atol) + abs (rtol) .le.zrmch) iflag = - 1
-      if (ntouta.le.1) iflag = - 1
-      if (job.eq.2.or.job.eq.3) then
-         xl = par (8)
-         xr = par (9)
-         if (xl.gt.xr) iflag = - 1
-      endif
-!
-!...if iflag = - 1, at least one of the parameters npde, npts,
-!...atol, rtol and ntouta has been incorrectly input, so the
-!...computation is halted
-!
-      if (iflag.eq. - 1) then
-         write (inform, 99910) iflag
-         write (inform, 99990) npde, npts, job, inform, mmpde, tau,     &
-         gamma, ip, atol, rtol, stpmax, ntouta
-         return
-      endif
-!
-!...check the dimensions of the workspace arrays
-!
-      neq = (2 * npde+1) * npts
-      if (mmpde.eq.2.or.mmpde.eq.3) then
-         lrw0 = 40 + 12 * neq + 3 * (ip + 2) * (2 * npde+1) * neq
-      else
-         lrw0 = 40 + 12 * neq + 3 * (0 + 2) * (2 * npde+1) * neq
-      endif
-      lrw1 = 20 + 6 * npde+ (3 * npde+2) * npts
-      if (lrw.lt.2 * npde+lrw0 + lrw1) iflag = - 2
-      if (liw.lt.20 + npts * (2 * npde+1) ) iflag = - 2
-!
-!...when iflag = - 2, at least one of the dimensions of the
-!...workspace arrays rwork and iwork is incorrectly input,
-!...so the computation is stopped
-!
-      if (iflag.eq. - 2) then
-         write (inform, 99920) iflag
-         write (inform, 99990) npde, npts, job, inform, mmpde, tau,     &
-         gamma, ip, atol, rtol, stpmax, ntouta
-         return
-      endif
-!
-!...call movcl1
-!
-      open(unit=111, file="par.dat")
-      do i = 1, 20
-         write(111,"(i5,f10.5)") i, par(i)
-      end do
-      close(111)
-
-      call movcl1 (eqn, npde, npts, job, inform, iflag, xl, xr, mmpde,&
-           & tau, gamma, ip, atol, rtol, stpmax, touta, ntouta,&
-           & rwork (1            : neq                      ),&      !y
-           & rwork (1+neq        : neq        + neq         ),&      !ydot
-           & rwork (1+2*neq      : 2*neq      + lrw0        ),&      !rwk
-           & lrw0, iwork, liw,&
-           & rwork (1+2*neq+lrw0 : 2*neq+lrw0 + lrw1 ), lrw1)        !rwk1
-      print *, lrw, lrw0, lrw1
-      !
-      return
-!
-99910 format(                                                           &
-     &/' *****************************************************'         &
-     &/' iflag = ',i3                                                   &
-     &/' halt......at least one of the parameters npde, npts'           &
-     &/' atol, rtol, ntouta, xl, and xr is incorrectly input.'          &
-     &/' they must satisfy :'                                           &
-     &/' npde >= 1                    npts >= 1'                        &
-     &/' |atol| + |rtol| > 0          ntouta >= 2'                      &
-     &/' xl <= xr (when job = 2 and 3)'                                 &
-     &/' *****************************************************'/)
-99920 format(                                                           &
-     &/' *****************************************************'         &
-     &/' iflag = ',i3                                                   &
-     &/' halt......at least one of the workspace arrays rwork'          &
-     &/' and iwork has insufficient length. check the values'           &
-     &/' of lrw and liw. also check the values for npde, npts'          &
-     &/' and ip := par(6)'                                              &
-     &/' *****************************************************'/)
-99990 format(                                                           &
-     &/' *****************************************************'         &
-     &/'  npde =',i12,'  npts =',i12,                                   &
-     &'   job =',i12,' inform=', i10                                    &
-     &/' mmpde =',i12,'   tau =',e12.5,                                 &
-     &' gamma =',e12.5,'    ip =',i10                                   &
-     &/'  atol =',e12.5,'  rtol =', e12.5,                              &
-     &' stpmax=',e12.4,' ntouta=',i10                                   &
-     &/' *****************************************************'/)
-      end subroutine movcol
+      ! real(8) :: rtol, atol
+      ! class(problem_movcol), target :: eqn
+      ! real(8) :: touta(:)
+      ! ! this subroutine doesn't do anything now, do not call it
+      ! print *, "Do not call subroutine movcol"
+      ! return
+      ! end subroutine movcol
 !
 !***********************************************************************
 !***********************************************************************
 !
-      subroutine movcl1 (eqn, npde, npts, job, inform, iflag, xl, xr, mmpde, &
-      tau, gamma, ip, atol, rtol, stpmax, touta, ntouta, y, ydot, rwk,  &
-      lrw, iwk, liw, rwk1, lrw1)
+      subroutine movcl1 (eqn)
 !
 !...this is the main subroutine.
 !...the relationships between y, ydot, and (x, u) are
@@ -886,29 +868,63 @@ module movcol_mod
 !...job = 3: only generate a mesh corresponding to the given
 !...         initial value of the solution
 !
-      implicit real (8)(a - h, o - z)
-      class(problem_movcol) :: eqn
+
+      class(problem_movcol), target :: eqn
+
+
+      ! arrays allocated for ddassl
+      integer :: info (15), iwk1 (20)
       real(8) :: rtol1(1), atol1(1)
-      dimension iwk (liw), info (15), iwk1 (20)
-      dimension touta (ntouta), y (npts * (2 * npde+1) ), rwk (lrw)
-      dimension rwk1 (lrw1), ydot (npts * (2 * npde+1) )
+
+      ! this variable controls the execution flow for the whole movcl1
+      ! subroutine.  When phypd = TRUE we are solving the physical
+      ! system, otherwise we are relaxing the mesh
       logical phypde
+
+      integer :: npde, npts, lrw1, liw, ip, mmpde, job, lrw, ntouta, index
+
+      integer :: m, neq, i, itout, istop, nts, itoutm, inform
+      real(8) :: xl, xr, gamma, stpmax, zrmch, t, tau, temp, tstep
+      real(8) :: tout, rtol, atol
+
+      real(8), pointer :: rwk(:), rwk1(:)
+      real(8), pointer :: touta(:), y(:), ydot(:)
+      integer, pointer :: iwk(:)
+
+      ! bind the local variables to the variables stored in eqn
+      job = eqn%job
+      xl  = eqn%left_end
+      xr  = eqn%right_end
+      mmpde  = eqn%mmpde
+      gamma  = eqn%gamma
+      ip     = eqn%ip
+      stpmax = eqn%stpmax
+      tau    = eqn%tau
+      inform = eqn%inform
+      npde   = eqn%npde
+      npts   = eqn%npts
+      rtol   = eqn%rtol
+      atol   = eqn%atol
+
+      rwk    => eqn%tmp%ddassl_work
+      rwk1   => eqn%tmp%movcol_rwork
+      iwk    => eqn%tmp%movcol_iwork
+      y      => eqn%y_flat
+      ydot   => eqn%ydot_flat
+      touta  => eqn%touta
+
+      lrw    = size(rwk)
+      lrw1   = size(rwk1)
+      liw    = size(iwk)
+      ntouta = size(touta)
+
+      ! so far so good, so set the error flag to OK
+      eqn%iflag = 0
 !
 !...define some basic parameters
 !
       m = 2 * npde+1
       neq = m * npts
-      m11 = 20
-      m12 = 20 + 1 * npde
-      m13 = 20 + 2 * npde
-      m14 = 20 + 3 * npde
-      m15 = 20 + 4 * npde
-      m16 = 20 + 5 * npde
-      m21 = 20 + 6 * npde
-      m22 = 20 + 6 * npde+1 * npts
-      m31 = 20 + 6 * npde+2 * npts
-      m32 = 20 + 6 * npde+2 * npts + 1 * npde * npts
-      m33 = 20 + 6 * npde+2 * npts + 2 * npde * npts
       zrmch = epsilon (1.0d0)
 !     phypde = 'true' for solving the physical pdes
 !     phypde = 'false' for generating a mesh
@@ -926,7 +942,7 @@ module movcol_mod
 !     the mesh generation case: starting from a uniform mesh
       if (.not.phypde) then
          do i = 1, npts
-            y (m * i) = xl + (xr - xl) * (i - 1) / (npts - 1)
+            eqn%x (i) = xl + (xr - xl) * (i - 1) / (npts - 1)
          end do
       endif
 
@@ -1036,7 +1052,7 @@ module movcol_mod
          ! stop
 
          call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
-         idid, rwk, lrw, iwk, liw, rwk1, iwk1)
+         eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
       end do
 !
 !...now begin the actual numerical integration
@@ -1124,14 +1140,11 @@ module movcol_mod
       tstep = zero
       istop = 0
       nts = 0
-      call eqn%slnout (npde, npts, t, y, ydot, touta, ntouta, tstep, istop, &
-      index, nts, rwk1 (m11 + 1), rwk1 (m12 + 1), rwk1 (m13 + 1),       &
-      rwk1 (m14 + 1), rwk1 (m15 + 1), rwk1 (m21 + 1), rwk1 (m22 + 1),   &
-      rwk1 (m31 + 1), rwk1 (m32 + 1), rwk1 (m33 + 1))
+      call eqn%slnout (t, tstep, istop, index, nts)
 !     if istop < 0, stop the computation
       if (istop.lt.0) then
-         iflag = - 3
-         write (inform, 99950) iflag
+         eqn%iflag = - 3
+         write (inform, 99950) eqn%iflag
          write (inform, 99990) npde, npts, job, inform, mmpde, tau,     &
          gamma, ip, atol, rtol, stpmax, ntouta
          return
@@ -1151,7 +1164,7 @@ module movcol_mod
             tout = one
          endif
   110    call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,  &
-         idid, rwk, lrw, iwk, liw, rwk1, iwk1)
+         eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
 !
 !...print the solution at t
 !
@@ -1163,14 +1176,14 @@ module movcol_mod
          tstep = rwk (7)
          istop = 0
          nts = iwk (11)
-         call eqn%slnout (npde, npts, t, y, ydot, touta, ntouta, tstep,     &
-         istop, index, nts, rwk1 (m11 + 1), rwk1 (m12 + 1), rwk1 (m13 + &
-         1), rwk1 (m14 + 1), rwk1 (m15 + 1), rwk1 (m21 + 1), rwk1 (m22 +&
-         1), rwk1 (m31 + 1), rwk1 (m32 + 1), rwk1 (m33 + 1))
+         call eqn%slnout (t, tstep, istop, index, nts)
+!        call eqn%slnout (npde, npts, t, y, ydot, touta, ntouta,
+!         tstep, istop, index, nts)
+
 !     if istop < 0, stop the computation
          if (istop.lt.0) then
-            iflag = - 3
-            write (inform, 99950) iflag
+            eqn%iflag = - 3
+            write (inform, 99950) eqn%iflag
             write (inform, 99990) npde, npts, job, inform, mmpde, tau,  &
             gamma, ip, atol, rtol, stpmax, ntouta
             return
@@ -1178,26 +1191,26 @@ module movcol_mod
 !
 !...check the performance of the time integrator
 !
-         if (idid.eq.1) goto 110
+         if (eqn%idid.eq.1) goto 110
 !        a step was successfully taken in the intermediate-output
 !        mode. ddassl has not yet reached tout. continue the time
 !        integration
-         if (idid.eq. - 1) then
+         if (eqn%idid.eq. - 1) then
 !        a large amount of work has been expended. reset the
 !        limitation and continue the time integration
             info (1) = 1
             goto 110
          endif
-         if (idid.ge. - 1.and.idid.le.3) then
+         if (eqn%idid.ge. - 1.and.eqn%idid.le.3) then
 !        the time integration is successful to tout. output the
 !        performance information
-            write (inform, 99970) t, idid, iwk (14), iwk (15), iwk (11),&
+            write (inform, 99970) t, eqn%idid, iwk (14), iwk (15), iwk (11),&
             iwk (13), iwk (12), iwk (8), rwk (7), rwk (3)
             info (1) = 1
          else
 !        the time integration fails and the computation is stopped
-            iflag = - 4
-            write (inform, 99980) iflag, idid
+            eqn%iflag = - 4
+            write (inform, 99980) eqn%iflag, eqn%idid
             write (inform, 99990) npde, npts, job, inform, mmpde, tau,  &
             gamma, ip, atol, rtol, stpmax, ntouta
             return
@@ -1321,16 +1334,17 @@ module movcol_mod
       real(8), dimension(*) :: y, ydot, res, rwk
 
       ! local variables
+      integer :: npde, npts, mmpde, ip, m
       real(8) :: tau, gamma
-      logical phypde
+      logical :: phypde
 !
 !...define some basic parameters
 !
 
-      npde = iwk (1)
-      npts = iwk (2)
-      mmpde = iwk (3)
-      ip = iwk (4)
+      npde = eqn%npde
+      npts = eqn%npts
+      mmpde = eqn%mmpde
+      ip = eqn%ip
       if (iwk (5) .gt.0) then
 !        the case for solving the physical pdes
          phypde = .true.
@@ -1338,46 +1352,36 @@ module movcol_mod
 !        the mesh generation case
          phypde = .false.
       endif
-      gamma = rwk (1)
-      tau = rwk (2)
+      gamma = eqn%gamma
+      tau = eqn%tau
 
       m = 2 * npde+1
-      m11 = 20
-      m12 = 20 + 1 * npde
-      m13 = 20 + 2 * npde
-      m14 = 20 + 3 * npde
-      m15 = 20 + 4 * npde
-      m16 = 20 + 5 * npde
-      m21 = 20 + 6 * npde
-      m22 = 20 + 6 * npde+npts
 !
 !...compute residuals of the physical pdes and their bcs
 !
       if (phypde) then
 !        the case of solving the physical pdes
-         call eqn%respde (npde, npts, t, y, ydot, res, rwk (m11 + 1),       &
-         rwk (m12 + 1), rwk (m13 + 1), rwk (m14 + 1), rwk (m15 + 1),    &
-         rwk (m16 + 1))
+         call eqn%respde (npde, npts, t, y, ydot, res, eqn%tmp%u,       &
+         eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt, eqn%tmp%rw)
       else
 !        the mesh generation case
-         call eqn%respd1 (npde, npts, t, y, ydot, res, rwk (m11 + 1),       &
-         rwk (m12 + 1), rwk (m13 + 1), rwk (m14 + 1), rwk (m15 + 1) )
+         call eqn%respd1 (npde, npts, t, y, ydot, res, eqn%tmp%u,       &
+         eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt )
       endif
 !
 !...compute and smooth the monitor function
 !
 !     rwk(m21+i) := fmntr(i)
-      if (mmpde.ge.2) call eqn%evlmnt (npde, npts, t, y, ydot, rwk (m21 + 1)&
-      , rwk (m11 + 1), rwk (m12 + 1), rwk (m13 + 1), rwk (m14 + 1),     &
-      rwk (m15 + 1) )
-      if (mmpde.eq.2.or.mmpde.eq.3) call smtmnt (npts, ip, rwk (m21 + 1)&
-      , rwk (m22 + 1) )
+      if (mmpde.ge.2) call eqn%evlmnt (npde, npts, t, y, ydot, eqn%tmp%xmesh&
+      , eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut,     &
+      eqn%tmp%uxt )
+      if (mmpde.eq.2.or.mmpde.eq.3) call smtmnt (npts, ip, eqn%tmp%xmesh&
+      , eqn%tmp%xmesht )
 !
 !...compute residuals for the discrete mesh equations and their bcs.
 !
-      call eqn%resmeq ( npde, npts, mmpde, tau, gamma, y, ydot, res, rwk (   &
-      m21 + 1), rwk (m11 + 1), rwk (m12 + 1), rwk (m13 + 1), rwk (m14 + &
-      1), rwk (m15 + 1))
+      call eqn%resmeq ( npde, npts, mmpde, tau, gamma, y, ydot, res, eqn%tmp%xmesh,&
+           & eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt)
       if (.not.phypde) then
 !        the mesh generation case (for which boundaries are fixed)
          res (m) = ydot (m)
@@ -1409,12 +1413,19 @@ module movcol_mod
 !...
 !...and m = 2*npde+1
 !
-      implicit real (8)(a - h, o - z)
       class(problem_movcol) :: eqn
+      real(8) :: t, y, ydot, res, u, ux, uxx, ut, uxt, rw
+      integer :: npde, npts
+
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension res ( (2 * npde+1) * npts), u (npde), ux (npde),        &
       uxx (npde)
-      dimension ut (npde), uxt (npde), rw (npde), w (3, 2)
+      dimension ut (npde), uxt (npde), rw (npde)
+
+      ! local variables
+      real(8) :: w(3,2), h, x, xt
+      integer :: i, j, k, m
+
 !
       m = 2 * npde+1
 !
@@ -1518,12 +1529,18 @@ module movcol_mod
 !...
 !...and m = 2*npde+1
 !
-      implicit real (8)(a - h, o - z)
       class(problem_movcol) :: eqn
+      real(8) :: t, y, ydot, res, u, ux, uxx, ut, uxt
+      integer :: npde, npts
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension res ( (2 * npde+1) * npts), u (npde), ux (npde),        &
       uxx (npde)
       dimension ut (npde), uxt (npde)
+
+      ! local variables
+      integer :: m, i, j, k
+      real(8) :: h, ht, x, xt, temp, temp0, temp1, temp2, temp3
+
 !
       m = 2 * npde+1
 !
@@ -1638,13 +1655,17 @@ module movcol_mod
 !...
 !...and m = 2*npde+1
 !
-      implicit real (8)(a - h, o - z)
       class(problem_movcol) :: eqn
-      real(8) :: tau
+      real(8) :: tau, y, ydot, res, fmntr, u, ux, uxx, ut, uxt, gamma
+      integer :: npde, npts, mmpde
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension res ( (2 * npde+1) * npts), fmntr (npts), u (npde)
       dimension ux (npde), uxx (npde), ut (npde), uxt (npde)
-!
+
+      ! local variables
+      integer :: m, i
+      real(8) :: x, xt, t, temp, temp1, temp2, ym1, yp1, ym3, yp3, xlambd
+
       m = 2 * npde+1
 !
 !...mmpde = 1: fixed mesh
@@ -1758,10 +1779,14 @@ module movcol_mod
 !...
 !...and m = 2*npde+1
 !
-      implicit real (8)(a - h, o - z)
+      integer :: npde, npts, i, j, k
+      real(8) :: y, ydot, u, ux, uxx, ut, uxt, x
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension u (npde), ux (npde), uxx (npde), ut (npde), uxt (npde)
-      dimension temp (4, 0:2)
+
+      ! local variables
+      integer :: m
+      real(8) :: h, ht, temp(4,0:2), s
 !
       m = 2 * npde+1
       h = y (m * (i + 1) ) - y (m * i)
@@ -1816,7 +1841,8 @@ module movcol_mod
 !...value for the k_th derivative (k =  0, 1 or 2) of the j_th shape
 !...function (j = 1, 2, 3 or 4) for the cubic hermite interpolate
 !
-      implicit real (8)(a - h, o - z)
+      real(8) :: s
+      integer :: j, k
 !
       if (j.eq.1) then
          if (k.eq.0) fncshp = (one+two * s) * (one-s) * (one-s)
@@ -1863,11 +1889,16 @@ module movcol_mod
 !...
 !...and m = 2*npde+1
 !
-      implicit real (8)(a - h, o - z)
       class(problem_movcol) :: eqn
+      integer :: npde, npts
+      real(8) ::t, y, ydot, fmntr, u, ux, uxx, ut, uxt
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension u (npde), ux (npde), uxx (npde), ut (npde), uxt (npde)
       dimension fmntr (npts)
+
+      ! local variables
+      integer :: m, i, j
+      real(8) :: h, x, temp
 !
       m = 2 * npde+1
 !
@@ -1907,10 +1938,14 @@ module movcol_mod
 !...this subroutine smooths the monitor function. it is called
 !...only when mmpde = 2 or mmpde = 3
 !
-      implicit real (8)(a - h, o - z)
+      real(8) :: fmntr, rw
+      integer :: ip
+      integer :: npts
       dimension fmntr (npts), rw (npts)
 
-      real(8) :: gamma = 2.0
+      ! local variables
+      integer :: i, j
+      real(8) :: gamma = 2.0, temp, temp1
 !
       do 10 i = 1, npts - 1
          rw (i) = fmntr (i)
@@ -1939,8 +1974,13 @@ module movcol_mod
 !...of the solution by using the mesh points (xmesh) and corresponding
 !...mesh values for u and ux
 !
-      implicit real (8)(a - h, o - z)
+      integer :: npts, npde, k
+      real(8) :: xmesh, u, ux, x, uval, uxval
       dimension xmesh (npts), u (npts, npde), ux (npts, npde)
+
+      ! local variables
+      integer :: i1, i
+      real(8) :: h, s
 !
       do 10 i1 = 1, npts - 1
          if (xmesh (i1) .le.x.and.x.le.xmesh (i1 + 1) ) then
@@ -1964,46 +2004,59 @@ module movcol_mod
 !***********************************************************************
 !***********************************************************************
 !
-      subroutine slnout (eqn, npde, npts, t, y, ydot, touta, ntouta, tstep,  &
-      istop, index, nts, u, ux, uxx, ut, uxt, xmesh, xmesht, uu, uux,   &
-      uut)
+      subroutine slnout (eqn, t, tstep, istop, index, nts)
+      ! subroutine slnout (eqn, npde, npts, t, y, ydot, touta, ntouta, tstep,  &
+      ! istop, index, nts, u, ux, uxx, ut, uxt, xmesh, xmesht, uu, uux,   &
+      ! uut)
 !
 !...this subroutine outputs the solution values x_t, u, u_x,
 !...and u_t at point x and time t in the format prescribed by
 !...subroutine defout
 !
-      implicit real (8)(a - h, o - z)
-      class(problem_movcol) :: eqn
-      dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
-      dimension touta (ntouta), u (npde), ux (npde), uxx (npde)
-      dimension ut (npde), uxt (npde), xmesh (npts), xmesht (npts)
-      dimension uu (npts, npde), uux (npts, npde), uut (npts, npde)
+      class(problem_movcol), target :: eqn
+      integer :: index, istop, nts
+      real(8) :: t, tstep
+      ! integer :: npde, npts, ntouta, istop, index, nts
+      ! real(8) :: y, ydot, touta, u, ux, uxx, ut, uxt, xmesh, xmesht, uu, uux, uut
+      ! real(8) :: t, tstep
+      ! dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
+      ! dimension touta (ntouta), u (npde), ux (npde), uxx (npde)
+      ! dimension ut (npde), uxt (npde), xmesh (npts), xmesht (npts)
+      ! dimension uu (npts, npde), uux (npts, npde), uut (npts, npde)
+
+      ! local variables
+      integer :: npde, npts, m, i, i1
+      real(8) :: x
+      type(temp_storage), pointer :: tmp
+      tmp => eqn%tmp
+      npde = eqn%npde
+      npts = eqn%npts
 !
       m = 2 * npde+1
-      do 20 i = 1, npts
+
+      do i = 1, npts
 !
 !...compute u, ux, ut at time t and x = x_i
 !
-         x = y (m * i)
+         x = eqn%x(i)
          i1 = min (i, npts - 1)
-         call drvtvs (npde, npts, i1, x, y, ydot, u, ux, uxx, ut, uxt)
+         call drvtvs (npde, npts, i1, x, eqn%y_flat, eqn%ydot_flat,&
+              & tmp%u, tmp%ux, tmp%uxx, tmp%ut, tmp%uxt)
 !
 !...store x_i, xdot_i, u(k), ux(k), ut(k) in xmesh(i), xmesht(i),
 !...uu(i,k), uux(i,k) and uut(i,k), respectively
 !
-         xmesh (i) = x
-         xmesht (i) = ydot (m * i)
-         do 10 k = 1, npde
-            uu (i, k) = u (k)
-            uux (i, k) = ux (k)
-            uut (i, k) = ut (k)
-   10    end do
-   20 end do
+         tmp%xmesh (i) = x
+         tmp%xmesht (i) = eqn%ydot (m, i)
+         tmp%uu (i,:) = tmp%u
+         tmp%uux(i,:) = tmp%ux
+         tmp%uut(i,:) = tmp%ut
+      end do
 !
 !...output the solution values and current time stepsize tstep
 !
-      call eqn%defout (npde, npts, t, xmesh, xmesht, uu, uux, uut, tstep,   &
-      touta, ntouta, istop, index, nts)
+      call eqn%defout (t, tmp%xmesh, tmp%xmesht, tmp%uu, tmp%uux, tmp%uut, tstep,   &
+      eqn%touta, size(eqn%touta), istop, index, nts)
 !
       return
       end subroutine slnout
