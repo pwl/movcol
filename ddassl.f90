@@ -43,7 +43,7 @@ contains
 !            equations of the form G(T,Y,YPRIME) = 0.
 !***LIBRARY   SLATEC (DASSL)
 !***CATEGORY  I1A2
-!***TYPE      DOUBLE PRECISION (SDASSL-S, DDASSL-D)
+!***TYPE      REAL(8) (SDASSL-S, DDASSL-D)
 !***KEYWORDS  BACKWARD DIFFERENTIATION FORMULAS, DASSL,
 !             DIFFERENTIAL/ALGEBRAIC, IMPLICIT DIFFERENTIAL SYSTEMS
 !***AUTHOR  Petzold, Linda R., (LLNL)
@@ -57,7 +57,7 @@ contains
 !
 !      EXTERNAL RES, JAC
 !      INTEGER NEQ, INFO(N), IDID, LRW, LIW, IWORK(LIW), IPAR
-!      DOUBLE PRECISION T, Y(NEQ), YPRIME(NEQ), TOUT, RTOL, ATOL,
+!      REAL(8) T, Y(NEQ), YPRIME(NEQ), TOUT, RTOL, ATOL,
 !     *   RWORK(LRW), RPAR
 !
 !      CALL DDASSL (RES, NEQ, T, Y, YPRIME, TOUT, INFO, RTOL, ATOL,
@@ -65,7 +65,7 @@ contains
 !
 !
 ! *Arguments:
-!  (In the following, all real arrays should be type DOUBLE PRECISION.)
+!  (In the following, all real arrays should be type REAL(8).)
 !
 !  RES:EXT     This is a subroutine which you provide to define the
 !              differential/algebraic system.
@@ -539,7 +539,7 @@ contains
 !     DDASSL uses a weighted norm DDANRM to measure the size
 !     of vectors such as the estimated error in each step.
 !     A FUNCTION subprogram
-!       DOUBLE PRECISION FUNCTION DDANRM(NEQ,V,WT,RPAR,IPAR)
+!       REAL(8) FUNCTION DDANRM(NEQ,V,WT,RPAR,IPAR)
 !       DIMENSION V(NEQ),WT(NEQ)
 !     is used to define this norm. Here, V is the vector
 !     whose norm is to be computed, and WT is a vector of
@@ -969,7 +969,7 @@ contains
 !     Declare arguments.
 !
       INTEGER  NEQ, INFO(15), IDID, LRW, IWORK(*), LIW, IPAR(*)
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   T, Y(*), YPRIME(*), TOUT, RTOL(*), ATOL(*), RWORK(*),          &
      &   RPAR(*)
       class(problem_ddassl), target :: problem
@@ -977,7 +977,7 @@ contains
 !     Declare externals.
 !
       EXTERNAL  D1MACH
-      DOUBLE PRECISION  D1MACH
+      REAL(8)  D1MACH
 !
 !     Declare local variables.
 !
@@ -987,14 +987,14 @@ contains
      &   LNRE, LNS, LNST, LNSTL, LPD, LPHASE, LPHI, LPSI, LROUND, LS,   &
      &   LSIGMA, LTN, LTSTOP, LWM, LWT, MBAND, MSAVE, MXORD, NPD, NTEMP,&
      &   NZFLG
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   ATOLI, H, HMAX, HMIN, HO, R, RH, RTOLI, TDIST, TN, TNEXT,      &
      &   TSTOP, UROUND, YPNORM
       LOGICAL  DONE
 !       Auxiliary variables for conversion of values to be included in
 !       error messages.
-      CHARACTER*8  XERN1, XERN2
-      CHARACTER*16 XERN3, XERN4
+      CHARACTER(len=8)  XERN1, XERN2
+      CHARACTER(len=16) XERN3, XERN4
 !
 !     SET POINTERS INTO IWORK
       PARAMETER (LML=1, LMU=2, LMXORD=3, LMTYPE=4, LNST=11,             &
@@ -1010,6 +1010,7 @@ contains
      &  LCJ=5, LCJOLD=6, LHOLD=7, LS=8, LROUND=9,                       &
      &  LALPHA=11, LBETA=17, LGAMMA=23,                                 &
      &  LPSI=29, LSIGMA=35, LDELTA=41)
+
 !
 !***FIRST EXECUTABLE STATEMENT  DDASSL
       IF(INFO(1).NE.0)GO TO 100
@@ -1199,9 +1200,10 @@ contains
 !
 !     LOAD Y AND H*YPRIME INTO PHI(*,1) AND PHI(*,2)
       ITEMP = LPHI + NEQ
-      DO 370 I = 1,NEQ
+      DO I = 1,NEQ
          RWORK(LPHI + I - 1) = Y(I)
-  370    RWORK(ITEMP + I - 1) = H*YPRIME(I)
+         RWORK(ITEMP + I - 1) = H*YPRIME(I)
+      end DO
 !
   390 GO TO 500
 !
@@ -1332,9 +1334,11 @@ contains
            ATOL(1)=R*ATOL(1)
            IDID=-2
            GO TO 527
-  523 DO 524 I=1,NEQ
+  523 DO  I=1,NEQ
            RTOL(I)=R*RTOL(I)
-  524      ATOL(I)=R*ATOL(I)
+           ATOL(I)=R*ATOL(I)
+      end DO
+
       IDID=-2
       GO TO 527
   525 CONTINUE
@@ -1649,7 +1653,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Initialization routine for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDAINI-S, DDAINI-D)
+!***TYPE      REAL(8) (SDAINI-S, DDAINI-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------
@@ -1698,14 +1702,14 @@ contains
 !***END PROLOGUE  DDAINI
 !
       INTEGER  NEQ, IDID, IPAR(*), IWM(*), NONNEG, NTEMP
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   X, Y(*), YPRIME(*), H, WT(*), RPAR(*), PHI(NEQ,*), DELTA(*),   &
      &   E(*), WM(*), HMIN, UROUND
       class(problem_ddassl), target :: problem
 !
       INTEGER  I, IER, IRES, JCALC, LNJE, LNRE, M, MAXIT, MJAC, NCF,    &
      &   NEF, NSF
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   CJ, DAMP, DELNRM, ERR, OLDNRM, R, RATE, S, XOLD, YNORM
       LOGICAL  CONVGD
 !
@@ -1730,9 +1734,11 @@ contains
       YNORM=DDANRM(NEQ,Y,WT,RPAR,IPAR)
 !
 !     SAVE Y AND YPRIME IN PHI
-      DO 100 I=1,NEQ
+      DO I=1,NEQ
          PHI(I,1)=Y(I)
-  100    PHI(I,2)=YPRIME(I)
+         PHI(I,2)=YPRIME(I)
+      end DO
+
 !
 !
 !----------------------------------------------------
@@ -1745,8 +1751,9 @@ contains
       X=X+H
 !
 !     PREDICT SOLUTION AND DERIVATIVE
-      DO 250 I=1,NEQ
-  250   Y(I)=Y(I)+H*YPRIME(I)
+      DO I=1,NEQ
+         Y(I)=Y(I)+H*YPRIME(I)
+      end DO
 !
       JCALC=-1
       M=0
@@ -1778,8 +1785,9 @@ contains
 !
 !     MULTIPLY RESIDUAL BY DAMPING FACTOR
   310 CONTINUE
-      DO 320 I=1,NEQ
-  320    DELTA(I)=DELTA(I)*DAMP
+      DO I=1,NEQ
+         DELTA(I)=DELTA(I)*DAMP
+      end DO
 !
 !     COMPUTE A NEW ITERATE (BACK SUBSTITUTION)
 !     STORE THE CORRECTION IN DELTA
@@ -1787,9 +1795,10 @@ contains
       CALL DDASLV(NEQ,DELTA,WM,IWM)
 !
 !     UPDATE Y AND YPRIME
-      DO 330 I=1,NEQ
+      DO I=1,NEQ
          Y(I)=Y(I)-DELTA(I)
-  330    YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+         YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+      end DO
 !
 !     TEST FOR CONVERGENCE OF THE ITERATION.
 !
@@ -1824,15 +1833,17 @@ contains
 !     THE ITERATION HAS CONVERGED.
 !     CHECK NONNEGATIVITY CONSTRAINTS
   400 IF (NONNEG.EQ.0) GO TO 450
-      DO 410 I=1,NEQ
-  410    DELTA(I)=MIN(Y(I),0.0D0)
+      DO I=1,NEQ
+         DELTA(I)=MIN(Y(I),0.0D0)
+      end DO
 !
       DELNRM=DDANRM(NEQ,DELTA,WT,RPAR,IPAR)
       IF (DELNRM.GT.0.33D0) GO TO 430
 !
-      DO 420 I=1,NEQ
+      DO I=1,NEQ
          Y(I)=Y(I)-DELTA(I)
-  420    YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+         YPRIME(I)=YPRIME(I)-CJ*DELTA(I)
+      end DO
       GO TO 450
 !
 !
@@ -1848,8 +1859,9 @@ contains
 !     DO ERROR TEST.
 !-----------------------------------------------------
 !
-      DO 510 I=1,NEQ
-  510    E(I)=Y(I)-PHI(I,1)
+      DO I=1,NEQ
+         E(I)=Y(I)-PHI(I,1)
+      end DO
       ERR=DDANRM(NEQ,E,WT,RPAR,IPAR)
 !
       IF (ERR.LE.1.0D0) RETURN
@@ -1905,7 +1917,7 @@ contains
 !***PURPOSE  Compute the iteration matrix for DDASSL and form the
 !            LU-decomposition.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDAJAC-S, DDAJAC-D)
+!***TYPE      REAL(8) (SDAJAC-S, DDAJAC-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -1955,7 +1967,7 @@ contains
 !***END PROLOGUE  DDAJAC
 !
       INTEGER  NEQ, IER, IWM(*), IRES, IPAR(*), NTEMP
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   X, Y(*), YPRIME(*), DELTA(*), CJ, H, WT(*), E(*), WM(*),       &
      &   UROUND, RPAR(*)
       class(problem_ddassl), target :: problem
@@ -1965,7 +1977,7 @@ contains
       INTEGER  I, I1, I2, II, IPSAVE, ISAVE, J, K, L, LENPD, LIPVT,     &
      &   LML, LMTYPE, LMU, MBA, MBAND, MEB1, MEBAND, MSAVE, MTYPE, N,   &
      &   NPD, NPDM1, NROW
-      DOUBLE PRECISION  DEL, DELINV, SQUR, YPSAVE, YSAVE
+      REAL(8)  DEL, DELINV, SQUR, YPSAVE, YSAVE
 !
       PARAMETER (NPD=1)
       PARAMETER (LML=1)
@@ -2075,12 +2087,12 @@ contains
 !------END OF SUBROUTINE DDAJAC------
       END subroutine ddajac
 !DECK DDANRM
-      DOUBLE PRECISION FUNCTION DDANRM (NEQ, V, WT, RPAR, IPAR)
+      REAL(8) FUNCTION DDANRM (NEQ, V, WT, RPAR, IPAR)
 !***BEGIN PROLOGUE  DDANRM
 !***SUBSIDIARY
 !***PURPOSE  Compute vector norm for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDANRM-S, DDANRM-D)
+!***TYPE      REAL(8) (SDANRM-S, DDANRM-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2100,10 +2112,10 @@ contains
 !***END PROLOGUE  DDANRM
 !
       INTEGER  NEQ, IPAR(*)
-      DOUBLE PRECISION  V(NEQ), WT(NEQ), RPAR(*)
+      REAL(8)  V(NEQ), WT(NEQ), RPAR(*)
 !
       INTEGER  I
-      DOUBLE PRECISION  SUM, VMAX
+      REAL(8)  SUM, VMAX
 !
 !***FIRST EXECUTABLE STATEMENT  DDANRM
       DDANRM = 0.0D0
@@ -2126,7 +2138,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Linear system solver for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDASLV-S, DDASLV-D)
+!***TYPE      REAL(8) (SDASLV-S, DDASLV-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2151,7 +2163,7 @@ contains
 !***END PROLOGUE  DDASLV
 !
       INTEGER  NEQ, IWM(*)
-      DOUBLE PRECISION  DELTA(*), WM(*)
+      REAL(8)  DELTA(*), WM(*)
 !
       EXTERNAL  DGBSL, DGESL
 !
@@ -2190,7 +2202,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Perform one step of the DDASSL integration.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDASTP-S, DDASTP-D)
+!***TYPE      REAL(8) (SDASTP-S, DDASTP-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2279,7 +2291,7 @@ contains
 !
       INTEGER  NEQ, JSTART, IDID, IPAR(*), IWM(*), IPHASE, JCALC, K,    &
      &   KOLD, NS, NONNEG, NTEMP
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   X, Y(*), YPRIME(*), H, WT(*), RPAR(*), PHI(NEQ,*), DELTA(*),   &
      &   E(*), WM(*), ALPHA(*), BETA(*), GAMMA(*), PSI(*), SIGMA(*), CJ,&
      &   CJOLD, HOLD, S, HMIN, UROUND
@@ -2287,7 +2299,7 @@ contains
 !
       INTEGER  I, IER, IRES, J, J1, KDIFF, KM1, KNEW, KP1, KP2, LCTF,   &
      &   LETF, LMXORD, LNJE, LNRE, LNST, M, MAXIT, NCF, NEF, NSF, NSP1
-      DOUBLE PRECISION                                                  &
+      REAL(8)                                                  &
      &   ALPHA0, ALPHAS, CJLAST, CK, DELNRM, ENORM, ERK, ERKM1,         &
      &   ERKM2, ERKP1, ERR, EST, HNEW, OLDNRM, PNORM, R, RATE, TEMP1,   &
      &   TEMP2, TERK, TERKM1, TERKM2, TERKP1, XOLD, XRATE
@@ -2666,10 +2678,13 @@ contains
   585 CONTINUE
       DO 590 I=1,NEQ
   590    PHI(I,KP1)=PHI(I,KP1)+E(I)
-      DO 595 J1=2,KP1
+      DO J1=2,KP1
          J=KP1-J1+1
-         DO 595 I=1,NEQ
-  595    PHI(I,J)=PHI(I,J)+PHI(I,J+1)
+         DO I=1,NEQ
+            PHI(I,J)=PHI(I,J)+PHI(I,J+1)
+         end DO
+      end DO
+
       RETURN
 !
 !
@@ -2804,7 +2819,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Interpolation routine for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDATRP-S, DDATRP-D)
+!***TYPE      REAL(8) (SDATRP-S, DDATRP-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2837,10 +2852,10 @@ contains
 !***END PROLOGUE  DDATRP
 !
       INTEGER  NEQ, KOLD
-      DOUBLE PRECISION  X, XOUT, YOUT(*), YPOUT(*), PHI(NEQ,*), PSI(*)
+      REAL(8)  X, XOUT, YOUT(*), YPOUT(*), PHI(NEQ,*), PSI(*)
 !
       INTEGER  I, J, KOLDP1
-      DOUBLE PRECISION  C, D, GAMMA, TEMP1
+      REAL(8)  C, D, GAMMA, TEMP1
 !
 !***FIRST EXECUTABLE STATEMENT  DDATRP
       KOLDP1=KOLD+1
@@ -2869,7 +2884,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Set error weight vector for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      DOUBLE PRECISION (SDAWTS-S, DDAWTS-D)
+!***TYPE      REAL(8) (SDAWTS-S, DDAWTS-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2889,10 +2904,10 @@ contains
 !***END PROLOGUE  DDAWTS
 !
       INTEGER  NEQ, IWT, IPAR(*)
-      DOUBLE PRECISION  RTOL(*), ATOL(*), Y(*), WT(*), RPAR(*)
+      REAL(8)  RTOL(*), ATOL(*), Y(*), WT(*), RPAR(*)
 !
       INTEGER  I
-      DOUBLE PRECISION  ATOLI, RTOLI
+      REAL(8)  ATOLI, RTOLI
 !
 !***FIRST EXECUTABLE STATEMENT  DDAWTS
       RTOLI=RTOL(1)
@@ -2938,7 +2953,7 @@ contains
 ! Function routines called by XERMSG.. IXSAV
 ! Intrinsic function used by XERMSG.. LEN
 !-----------------------------------------------------------------------
-      CHARACTER*(*) LIBRAR, SUBROU, MESSG
+      CHARACTER(len=*) :: LIBRAR, SUBROU, MESSG
       INTEGER NERR, LEVEL
       INTEGER I1, I2, IL, LENMSG, LLEN, LUNIT, MESFLG, NLINES
       PARAMETER (LLEN = 72)
