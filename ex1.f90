@@ -37,9 +37,9 @@ contains
     real(8), dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
     real(8) :: eps
-    eps = 1.e-4_8
+    eps = 1.e-4
     if (index.lt.0) fg (1) = ut (1)
-    if (index.gt.0) fg (1) = eps * ux (1) - u (1) **2 / 2.d0
+    if (index.gt.0) fg (1) = eps * ux (1) - u (1) **2 / 2.
   end subroutine defpde
   !
   !-----
@@ -54,8 +54,8 @@ contains
     integer :: index
     real(8) :: t, x, xt
     real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
-    if (index.lt.0) res (1) = u (1) - exact (0.d0, t)
-    if (index.gt.0) res (1) = u (1) - exact (1.d0, t)
+    if (index.lt.0) res (1) = u (1) - exact (0., t)
+    if (index.gt.0) res (1) = u (1) - exact (1., t)
   end subroutine defbcp
 
 
@@ -67,8 +67,8 @@ contains
   subroutine defivs (eqn, x, u, ux)
     class(my_problem) :: eqn
     real(8) :: x, u(eqn%npde), ux(eqn%npde)
-    u (1) = exact (x, 0.d0)
-    ux (1) = dexact (x, 0.d0)
+    u (1) = exact (x, 0.)
+    ux (1) = dexact (x, 0.)
   end subroutine defivs
 
 
@@ -106,8 +106,8 @@ contains
     integer :: index
     real(8) :: t, x, xt, res
     real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
-    if (index.lt.0) res = x - 0.d0
-    if (index.gt.0) res = x - 1.d0
+    if (index.lt.0) res = x - 0.
+    if (index.gt.0) res = x - 1.
   end subroutine defbcm
 
   !
@@ -120,7 +120,7 @@ contains
     real(8) :: t, x, fmntr
     real(8), dimension(eqn%npde) :: u, ux, uxx, ut, uxt
     !     define the arclength monitor function
-    fmntr = dsqrt (1.d0 + ux (1) **2)
+    fmntr = dsqrt (1. + ux (1) **2)
   end subroutine defmnt
 
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -193,17 +193,17 @@ contains
     real(8) :: x,t
     real(8) :: eps, a, b, c, temp, ea, eb, ec
     eps = 1.d-4
-    a = - 0.05d0 / eps * (x - 0.5d0 + 4.95d0 * t)
-    b = - 0.25d0 / eps * (x - 0.5d0 + 0.75d0 * t)
-    c = - 0.50d0 / eps * (x - 0.375d0)
+    a = - 0.05 / eps * (x - 0.5 + 4.95 * t)
+    b = - 0.25 / eps * (x - 0.5 + 0.75 * t)
+    c = - 0.50 / eps * (x - 0.375)
     temp = dmax1 (a, b, c)
-    ea = 0.d0
-    eb = 0.d0
-    ec = 0.d0
-    if (a - temp.ge. - 35.d0) ea = dexp (a - temp)
-    if (b - temp.ge. - 35.d0) eb = dexp (b - temp)
-    if (c - temp.ge. - 35.d0) ec = dexp (c - temp)
-    exact = (0.1d0 * ea + 0.5d0 * eb + ec) / (ea + eb + ec)
+    ea = 0.
+    eb = 0.
+    ec = 0.
+    if (a - temp.ge. - 35.) ea = dexp (a - temp)
+    if (b - temp.ge. - 35.) eb = dexp (b - temp)
+    if (c - temp.ge. - 35.) ec = dexp (c - temp)
+    exact = (0.1 * ea + 0.5 * eb + ec) / (ea + eb + ec)
   end function exact
   !
   !-----
@@ -215,21 +215,21 @@ contains
     real(8) :: x, t
     real(8) :: eps, a, b, c, temp, r1, r2, r3, r1x, r2x, r3x
     eps = 1.d-4
-    a = - 0.05d0 / eps * (x - 0.5d0 + 4.95d0 * t)
-    b = - 0.25d0 / eps * (x - 0.5d0 + 0.75d0 * t)
-    c = - 0.50d0 / eps * (x - 0.375d0)
+    a = - 0.05 / eps * (x - 0.5 + 4.95 * t)
+    b = - 0.25 / eps * (x - 0.5 + 0.75 * t)
+    c = - 0.50 / eps * (x - 0.375)
     temp = dmax1 (a, b, c)
-    r1 = 0.d0
-    r2 = 0.d0
-    r3 = 0.d0
-    if (a - temp.ge. - 35.d0) r1 = dexp (a - temp)
-    if (b - temp.ge. - 35.d0) r2 = dexp (b - temp)
-    if (c - temp.ge. - 35.d0) r3 = dexp (c - temp)
-    r1x = - 0.05d0 * r1 / eps
-    r2x = - 0.25d0 * r2 / eps
-    r3x = - 0.50d0 * r3 / eps
-    dexact = ( ( - 0.4d0 * r2 - 0.9d0 * r3) * r1x + (0.4d0 * r1 -     &
-         0.5d0 * r3) * r2x + (0.9d0 * r1 + 0.5d0 * r2) * r3x) / (r1 + r2 + &
+    r1 = 0.
+    r2 = 0.
+    r3 = 0.
+    if (a - temp.ge. - 35.) r1 = dexp (a - temp)
+    if (b - temp.ge. - 35.) r2 = dexp (b - temp)
+    if (c - temp.ge. - 35.) r3 = dexp (c - temp)
+    r1x = - 0.05 * r1 / eps
+    r2x = - 0.25 * r2 / eps
+    r3x = - 0.50 * r3 / eps
+    dexact = ( ( - 0.4 * r2 - 0.9 * r3) * r1x + (0.4 * r1 -     &
+         0.5 * r3) * r2x + (0.9 * r1 + 0.5 * r2) * r3x) / (r1 + r2 + &
          r3) **2
   end function dexact
 end module my_problem_mod
@@ -268,8 +268,8 @@ program ex1
   my_eqn%npts  = 41
 
   ! set the parameters
-  my_eqn%left_end  = 0.0_8
-  my_eqn%right_end = 1.0_8
+  my_eqn%left_end  = 0.0
+  my_eqn%right_end = 1.0
 
   ! error tolerances
   my_eqn%atol = 1.d-3
@@ -277,7 +277,7 @@ program ex1
 
   ! output times
   allocate(my_eqn%touta(4))
-  my_eqn%touta = [0.00_8, 0.25_8, 0.55_8, 1.00_8]
+  my_eqn%touta = [0.00, 0.25, 0.55, 1.00]
 
   ! initialize solver
   call my_eqn%init()
