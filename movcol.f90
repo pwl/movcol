@@ -1,23 +1,32 @@
+!> @file   movcol.f90
+!! @author Pawel Biernat <pawel.biernat@gmail.com>
+!! @date   Fri Nov  8 16:23:57 2013
+!!
+!! @brief
+!!
+!! @todo completly remove rwk1
+!! @todo add y_current i ydot_current?
+!!
 module movcol_mod
 
   use ddassl_mod
 
   ! numerical parameters
   real(8), parameter ::&
-       &zero  = 0.0_8  ,&
-       &quart = 0.25_8 ,&
-       &half  = 0.5_8  ,&
-       &one   = 1.0_8  ,&
-       &two   = 2.0_8  ,&
-       &three = 3.0_8  ,&
-       &four  = 4.0_8  ,&
-       &six   = 6.0_8
+       &zero  = 0.0  ,&
+       &quart = 0.25 ,&
+       &half  = 0.5  ,&
+       &one   = 1.0  ,&
+       &two   = 2.0  ,&
+       &three = 3.0  ,&
+       &four  = 4.0  ,&
+       &six   = 6.0
 
   ! algorithm parameters?
   real(8), parameter ::&
-       &tau1 = 1.e-4_8,&
-       &s1 = 0.211324865347452d0,&
-       &s2 = 0.788675134652548d0
+       &tau1 = 1.e-4,&
+       &s1 = 0.211324865347452,&
+       &s2 = 0.788675134652548
 
   ! real(16), parameter ::&
   !      &tau2 = 0.0001_16
@@ -32,10 +41,13 @@ module movcol_mod
      ! of size npts x npde
      real(8), allocatable, dimension(:,:) :: uu, uux, uut
      ! work array for ddassl
-     real(8), allocatable, dimension(:)   :: ddassl_work
+     real(8), allocatable, dimension(:)   :: ddassl_rwork(:)
+     integer, allocatable, dimension(:)   :: ddassl_iwork(:)
      ! work arrays for movcol
      real(8), allocatable, dimension(:) :: movcol_rwork(:)
-     integer, allocatable, dimension(:) :: movcol_iwork(:)
+     ! integer, allocatable, dimension(:) :: movcol_iwork(:)
+     ! old phypde
+     logical :: physpde
   end type temp_storage
 
 
@@ -56,15 +68,15 @@ module movcol_mod
      integer :: job       = 2     !par(1)
      integer :: output    = -1    !par(2)
      integer :: mmpde     = 4     !par(3)
-     real(8) :: tau       = 1e-4_8!par(4)
-     real(8) :: gamma     = 1.0_8 !par(5)
-     integer :: ip        = 2.0_8 !par(6)
-     real(8) :: stpmax    = 1.0_8/epsilon(0.0_8) !par(7)
-     real(8) :: left_end  = 0.0_8 !par(8)
-     real(8) :: right_end = 1.0_8 !par(9)
+     real(8) :: tau       = 1e-4!par(4)
+     real(8) :: gamma     = 1.0 !par(5)
+     integer :: ip        = 2.0 !par(6)
+     real(8) :: stpmax    = 1.0/epsilon(0.0) !par(7)
+     real(8) :: left_end  = 0.0 !par(8)
+     real(8) :: right_end = 1.0 !par(9)
 
      ! relative and absolute error tolerances
-     real(8) :: rtol = -1.0_8, atol = -1.0_8
+     real(8) :: rtol = -1.0, atol = -1.0
 
      ! system size and number of mesh points
      integer :: npts, npde
@@ -93,8 +105,8 @@ module movcol_mod
      procedure :: evlmnt
      procedure :: resmeq
      ! procedures defined for parent problem_ddassl
-     procedure :: res => resode
-     procedure :: jac => jacode
+     procedure, public :: res => resode
+     procedure, public :: jac => jacode
      ! these procedures must be defined in a child class
      procedure(defivs_i), deferred :: defivs
      procedure(defout_i), deferred :: defout
@@ -229,7 +241,7 @@ module movcol_mod
          return
       end if
 
-      if (abs (eqn%atol) + abs (eqn%rtol) .le. epsilon(0.0_8)) then
+      if (abs (eqn%atol) + abs (eqn%rtol) .le. epsilon(0.0)) then
          eqn%iflag = - 1
          print *, "|atol| + |rtol| <= epsilon"
          return
@@ -269,17 +281,20 @@ module movcol_mod
       else
          lrw0 = 40 + 12 * neq + 3 * (0 + 2) * (2 * npde+1) * neq
       endif
-      allocate(eqn%tmp%ddassl_work(lrw0))
+      allocate(eqn%tmp%ddassl_rwork(lrw0))
+      allocate(eqn%tmp%ddassl_iwork(liw))
+      eqn%tmp%ddassl_rwork = 0.0
+      eqn%tmp%ddassl_iwork = 0
 
       ! allocate the work array with a size decreased by double the
       ! size of eqn%y and eqn%ydot
       lrw1 = 20 + 6 * npde+ (3 * npde+2) * npts
       allocate(eqn%tmp%movcol_rwork(lrw1))
-      allocate(eqn%tmp%movcol_iwork(liw))
+      ! allocate(eqn%tmp%movcol_iwork(liw))
 
       ! initialize work arrays with zeroes
-      eqn%tmp%movcol_rwork = 0.0_8
-      eqn%tmp%movcol_iwork = 0
+      eqn%tmp%movcol_rwork = 0.0
+      ! eqn%tmp%movcol_iwork = 0
 
       ! if the touta table was not allocate, allocate it as an empty table
       if(.not. allocated(eqn%touta)) then
@@ -873,21 +888,20 @@ module movcol_mod
 
 
       ! arrays allocated for ddassl
-      integer :: info (15), iwk1 (20)
+      integer :: info (15), iwk1 (0)
       real(8) :: rtol1(1), atol1(1)
 
       ! this variable controls the execution flow for the whole movcl1
       ! subroutine.  When phypd = TRUE we are solving the physical
       ! system, otherwise we are relaxing the mesh
-      logical phypde
 
-      integer :: npde, npts, lrw1, liw, ip, mmpde, job, lrw, ntouta, index
+      integer :: npde, npts, liw, ip, mmpde, job, lrw, ntouta, index
 
       integer :: m, neq, i, itout, istop, nts, itoutm, inform
       real(8) :: xl, xr, gamma, stpmax, zrmch, t, tau, temp, tstep
-      real(8) :: tout, rtol, atol
+      real(8) :: tout, rtol, atol, rwk1(0)
 
-      real(8), pointer :: rwk(:), rwk1(:)
+      real(8), pointer :: rwk(:)
       real(8), pointer :: touta(:), y(:), ydot(:)
       integer, pointer :: iwk(:)
 
@@ -906,15 +920,14 @@ module movcol_mod
       rtol   = eqn%rtol
       atol   = eqn%atol
 
-      rwk    => eqn%tmp%ddassl_work
-      rwk1   => eqn%tmp%movcol_rwork
-      iwk    => eqn%tmp%movcol_iwork
+      rwk    => eqn%tmp%ddassl_rwork
+      iwk    => eqn%tmp%ddassl_iwork
+      ! iwk    => eqn%tmp%movcol_iwork
       y      => eqn%y_flat
       ydot   => eqn%ydot_flat
       touta  => eqn%touta
 
       lrw    = size(rwk)
-      lrw1   = size(rwk1)
       liw    = size(iwk)
       ntouta = size(touta)
 
@@ -925,22 +938,22 @@ module movcol_mod
 !
       m = 2 * npde+1
       neq = m * npts
-      zrmch = epsilon (1.0d0)
+      zrmch = epsilon (1.0)
 !     phypde = 'true' for solving the physical pdes
 !     phypde = 'false' for generating a mesh
-      if (job.eq.1) phypde = .true.
-      if (job.eq.2) phypde = .false.
-      if (job.eq.3) phypde = .false.
+      if (job.eq.1) eqn%tmp%physpde = .true.
+      if (job.eq.2) eqn%tmp%physpde = .false.
+      if (job.eq.3) eqn%tmp%physpde = .false.
 !
 !...compute the initial mesh
 !
 !     for solving the physical pde
-      if (phypde) then
+      if (eqn%tmp%physpde) then
          call eqn%defmsh(eqn%x)
       endif
 !
 !     the mesh generation case: starting from a uniform mesh
-      if (.not.phypde) then
+      if (.not.eqn%tmp%physpde) then
          do i = 1, npts
             eqn%x (i) = xl + (xr - xl) * (i - 1) / (npts - 1)
          end do
@@ -951,7 +964,7 @@ module movcol_mod
 !
       write (inform, 99920)
 !  this is the entry point for one of the gotos
-   20 if (phypde) then
+   20 if (eqn%tmp%physpde) then
          write (inform, 99930)
       else
          write (inform, 99940)
@@ -971,33 +984,16 @@ module movcol_mod
 !
 !...compute the initial values of the physical solution
 !
-      if (phypde) then
-         print *, "phypde = ",phypde
+      if (eqn%tmp%physpde) then
 !        the case of solving the physical pdes
          do i = 1, npts
-            call eqn%defivs(eqn%x(i),eqn%u(:,i),eqn%ux(:,i))
+            call eqn%defivs(eqn%x(i), eqn%u(:,i), eqn%ux(:,i))
          end do
       else
 !        the mesh generation case
-         eqn%u  = 0.0_8
-         eqn%ux = 0.0_8
+         eqn%u  = zero
+         eqn%ux = zero
       endif
-
-      close(111)
-!
-!...define the input parameters for subroutine resode
-!
-      iwk1 (1) = npde
-      iwk1 (2) = npts
-      iwk1 (3) = mmpde
-      iwk1 (4) = ip
-      if (phypde) then
-         iwk1 (5) = + 1
-      else
-         iwk1 (5) = - 1
-      endif
-      rwk1 (1) = gamma
-      rwk1 (2) = tau
 !
 !...define the input parameters for ddassl
 !
@@ -1031,26 +1027,19 @@ module movcol_mod
 !
 !...take two time integration steps using ddassl
 !
-      if (phypde) then
+      if (eqn%tmp%physpde) then
          t = touta (1)
          tout = touta (1) + one
       else
          t = zero
          tout = one
       endif
+
+      print *, "t=", t
+
       atol1 = one
       rtol1 = one
       do itout = 1, 2
-
-         ! open(unit=111, file="inside_resode.dat")
-         ! ! print *, npde, npts, mmpde, ip, gamma, tau, m
-         ! ! print *, zero, quart, half, one, two, three, four, six
-         ! do i = 1, eqn%npts
-         !    write(111,"(i10,(f30.10))") i, eqn%x(i)
-         ! end do
-         ! close(111)
-         ! stop
-
          call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
          eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
       end do
@@ -1071,17 +1060,17 @@ module movcol_mod
       endif
 !
 !     the mesh generation case: starting from a uniform mesh
-      if (.not.phypde) then
+      if (.not.eqn%tmp%physpde) then
          do i = 1, npts
             eqn%x(i) = xl + (xr - xl) * (i - 1) / (npts - 1)
          end do
       endif
 !
 !     for the physical solution
-      if (phypde) then
+      if (eqn%tmp%physpde) then
 !        the case of solving the physical pdes
          do i = 1, npts
-            call eqn%defivs (eqn%x(i), eqn%u(:,i), eqn%ux(:,i))
+            call eqn%defivs(eqn%x(i), eqn%u(:,i), eqn%ux(:,i))
          end do
 
       else
@@ -1089,20 +1078,6 @@ module movcol_mod
          eqn%u  = zero
          eqn%ux = zero
       endif
-!
-!...define the input parameters for subroutine resode
-!
-      iwk1 (1) = npde
-      iwk1 (2) = npts
-      iwk1 (3) = mmpde
-      iwk1 (4) = ip
-      if (phypde) then
-         iwk1 (5) = + 1
-      else
-         iwk1 (5) = - 1
-      endif
-      rwk1 (1) = gamma
-      rwk1 (2) = tau
 !
 !...define the input parameters for ddassl
 !
@@ -1124,13 +1099,13 @@ module movcol_mod
       info (8) = 1
 !        define the initial time stepsize
       temp = abs (touta (ntouta) )
-      if (.not.phypde) temp = one
+      if (.not.eqn%tmp%physpde) temp = one
       rwk (3) = min (stpmax, rtol, atol, temp, one)
       info (11) = 1
 !
 !...print the initial solution
 !
-      if (phypde) then
+      if (eqn%tmp%physpde) then
          t = touta (1)
          index = + 1
       else
@@ -1152,23 +1127,30 @@ module movcol_mod
 !
 !...perform the time integration with ddassl
 !
-      if (phypde) then
+      if (eqn%tmp%physpde) then
          itoutm = ntouta
       else
          itoutm = 2
       endif
       do itout = 2, itoutm
-         if (phypde) then
+         if (eqn%tmp%physpde) then
             tout = touta (itout)
          else
             tout = one
          endif
-  110    call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,  &
-         eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
+
+110      continue
+
+         rtol1 = eqn%rtol
+         atol1 = eqn%atol
+
+         call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
+              eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
+
 !
 !...print the solution at t
 !
-         if (phypde) then
+         if (eqn%tmp%physpde) then
             index = + 1
          else
             index = - 1
@@ -1219,8 +1201,8 @@ module movcol_mod
 !
 !...if job = 2, go back to solve the physical pdes
 !
-      if (job.eq.2.and. (.not.phypde) ) then
-         phypde = .true.
+      if (job.eq.2.and. (.not.eqn%tmp%physpde) ) then
+         eqn%tmp%physpde = .true.
          goto 20
       endif
 !
@@ -1336,7 +1318,6 @@ module movcol_mod
       ! local variables
       integer :: npde, npts, mmpde, ip, m
       real(8) :: tau, gamma
-      logical :: phypde
 !
 !...define some basic parameters
 !
@@ -1345,21 +1326,23 @@ module movcol_mod
       npts = eqn%npts
       mmpde = eqn%mmpde
       ip = eqn%ip
-      if (iwk (5) .gt.0) then
-!        the case for solving the physical pdes
-         phypde = .true.
-      else
-!        the mesh generation case
-         phypde = .false.
-      endif
+
       gamma = eqn%gamma
       tau = eqn%tau
 
       m = 2 * npde+1
+
+
+      open(unit=111, file="inside_resode.dat")
+      write(111,*) y(1:m*npts)
+      write(111,*) ydot(1:m*npts)
+      write(111,*) res(1:m*npts)
+      close(111)
+
 !
 !...compute residuals of the physical pdes and their bcs
 !
-      if (phypde) then
+      if (eqn%tmp%physpde) then
 !        the case of solving the physical pdes
          call eqn%respde (npde, npts, t, y, ydot, res, eqn%tmp%u,       &
          eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt, eqn%tmp%rw)
@@ -1382,12 +1365,20 @@ module movcol_mod
 !
       call eqn%resmeq ( npde, npts, mmpde, tau, gamma, y, ydot, res, eqn%tmp%xmesh,&
            & eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt)
-      if (.not.phypde) then
+      if (.not.eqn%tmp%physpde) then
 !        the mesh generation case (for which boundaries are fixed)
          res (m) = ydot (m)
          res (m * npts) = ydot (m * npts)
       endif
 !
+
+
+      open(unit=111, file="leaving_resode.dat")
+      write(111,*) y(1:m*npts)
+      write(111,*) ydot(1:m*npts)
+      write(111,*) res(1:m*npts)
+      close(111)
+
       return
       end subroutine resode
 !
