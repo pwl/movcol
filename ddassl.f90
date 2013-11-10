@@ -14,7 +14,7 @@ module ddassl_mod
        integer :: ires
        integer, dimension(*) :: iwk
        real(8) :: t
-       real(8), dimension(*) :: y, ydot, res, rwk
+       real(8), dimension(*), target :: y, ydot, res, rwk
      end subroutine res_i
 
      subroutine jac_i(eqn, t, y, ydot, pd,  cj,   rwk, iwk)

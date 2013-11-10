@@ -4,7 +4,6 @@
 !!
 !! @brief
 !!
-!! @todo completly remove rwk1
 !! @todo add y_current i ydot_current?
 !!
 module movcol_mod
@@ -57,6 +56,8 @@ module movcol_mod
 
      ! pointers to the physical quantities
      real(8), pointer     :: x(:), u(:,:), ux(:,:)
+     real(8), pointer     :: xt(:), ut(:,:), uxt(:,:)
+     real(8), pointer     :: resx(:), resu(:,:), resux(:,:)
      real(8), allocatable :: y(:,:), ydot(:,:)
      ! flat counterparts to y and ydot
      real(8), pointer     :: y_flat(:), ydot_flat(:)
@@ -99,10 +100,10 @@ module movcol_mod
 
      ! other private  procedures
      procedure :: movcl1
-     procedure :: slnout
+     procedure :: solution_out
      procedure :: respde
      procedure :: respd1
-     procedure :: evlmnt
+     procedure :: evaluate_monitor
      procedure :: resmeq
      ! procedures defined for parent problem_ddassl
      procedure, public :: res => resode
@@ -308,12 +309,13 @@ module movcol_mod
       eqn%y_flat(1:m*npts) => eqn%y
       eqn%ydot_flat(1:m*npts) => eqn%ydot
 
-      ! eqn%y   (1:m,1:npts) => eqn%rwork(1       :  m*npts)
-      ! eqn%ydot(1:m,1:npts) => eqn%rwork(m*npts+1:2*npts*m)
-
       eqn%x  => eqn%y(m,            :)
       eqn%u  => eqn%y(1:npde,       :)
       eqn%ux => eqn%y(npde+1:2*npde,:)
+
+      eqn%xt => eqn%ydot(m,            :)
+      eqn%ut => eqn%ydot(1:npde,       :)
+      eqn%uxt=> eqn%ydot(npde+1:2*npde,:)
 
       ! temporary storage, should replace the work arrays
       allocate(eqn%tmp%u(npde))         !rwk1(m11+1)
@@ -816,9 +818,9 @@ module movcol_mod
 ! respd1:i  computes the residuals for the discretizations of the
 !           (artificial) pde and bcs during the mesh generation
 !
-! evlmnt:i  computes the monitor function
+! evaluate_monitor:i  computes the monitor function
 !
-! smtmnt:i  smooths the monitor function (only used for mmpde = 2
+! smoothen_monitor:i  smooths the monitor function (only used for mmpde = 2
 !           and 3)
 !
 ! resmeq:i  computes the residuals of the discrete mesh equations and
@@ -832,7 +834,7 @@ module movcol_mod
 !
 ! zermch:i  computes the machine unit roundoff in double precision
 !
-! slnout:i  driver for the subroutine defout for solution output
+! solution_out:i  driver for the subroutine defout for solution output
 !
 ! ddassl    double precision version of dassl. this and certain
 !           subroutines (from linpack) used by dassl must be included.
@@ -1115,7 +1117,7 @@ module movcol_mod
       tstep = zero
       istop = 0
       nts = 0
-      call eqn%slnout (t, tstep, istop, index, nts)
+      call eqn%solution_out (t, tstep, istop, index, nts)
 !     if istop < 0, stop the computation
       if (istop.lt.0) then
          eqn%iflag = - 3
@@ -1158,8 +1160,8 @@ module movcol_mod
          tstep = rwk (7)
          istop = 0
          nts = iwk (11)
-         call eqn%slnout (t, tstep, istop, index, nts)
-!        call eqn%slnout (npde, npts, t, y, ydot, touta, ntouta,
+         call eqn%solution_out (t, tstep, istop, index, nts)
+!        call eqn%solution_out (npde, npts, t, y, ydot, touta, ntouta,
 !         tstep, istop, index, nts)
 
 !     if istop < 0, stop the computation
@@ -1313,11 +1315,12 @@ module movcol_mod
       integer :: ires
       integer, dimension(*) :: iwk
       real(8) :: t
-      real(8), dimension(*) :: y, ydot, res, rwk
+      real(8), dimension(*), target :: y, ydot, res, rwk
 
       ! local variables
       integer :: npde, npts, mmpde, ip, m
       real(8) :: tau, gamma
+      real(8), pointer :: y2d(:,:), ydot2d(:,:), res2d(:,:)
 !
 !...define some basic parameters
 !
@@ -1332,12 +1335,20 @@ module movcol_mod
 
       m = 2 * npde+1
 
+      y2d(1:m,1:npts) => y(1:m*npts)
+      ydot2d(1:m,1:npts) => ydot(1:m*npts)
+      res2d(1:m,1:npts) => res(1:m*npts)
 
-      open(unit=111, file="inside_resode.dat")
-      write(111,*) y(1:m*npts)
-      write(111,*) ydot(1:m*npts)
-      write(111,*) res(1:m*npts)
-      close(111)
+      ! update the pointers before calling subroutines defined by user
+      eqn%x  => y2d   (m,            :)
+      eqn%u  => y2d   (1:npde,       :)
+      eqn%ux => y2d   (npde+1:2*npde,:)
+      eqn%xt => ydot2d(m,            :)
+      eqn%ut => ydot2d(1:npde,       :)
+      eqn%uxt=> ydot2d(npde+1:2*npde,:)
+      ! eqn%resx => res2d(m,            :)
+      ! eqn%resu => res2d(1:npde,       :)
+      ! eqn%resux=> res2d(npde+1:2*npde,:)
 
 !
 !...compute residuals of the physical pdes and their bcs
@@ -1355,10 +1366,10 @@ module movcol_mod
 !...compute and smooth the monitor function
 !
 !     rwk(m21+i) := fmntr(i)
-      if (mmpde.ge.2) call eqn%evlmnt (npde, npts, t, y, ydot, eqn%tmp%xmesh&
-      , eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut,     &
-      eqn%tmp%uxt )
-      if (mmpde.eq.2.or.mmpde.eq.3) call smtmnt (npts, ip, eqn%tmp%xmesh&
+      if (mmpde.ge.2) call eqn%evaluate_monitor (npde, npts, t, y, ydot,&
+           & eqn%tmp%xmesh, eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut,     &
+           & eqn%tmp%uxt )
+      if (mmpde.eq.2.or.mmpde.eq.3) call smoothen_monitor (npts, ip, eqn%tmp%xmesh&
       , eqn%tmp%xmesht )
 !
 !...compute residuals for the discrete mesh equations and their bcs.
@@ -1371,14 +1382,6 @@ module movcol_mod
          res (m * npts) = ydot (m * npts)
       endif
 !
-
-
-      open(unit=111, file="leaving_resode.dat")
-      write(111,*) y(1:m*npts)
-      write(111,*) ydot(1:m*npts)
-      write(111,*) res(1:m*npts)
-      close(111)
-
       return
       end subroutine resode
 !
@@ -1434,18 +1437,18 @@ module movcol_mod
 !...at the interior (gauss) points
 !
       do 50 i = 1, npts - 1
-         h = y (m * (i + 1) ) - y (m * i)
+         h = eqn%x(i+1)-eqn%x(i)
 !
 !...compute the left-hand-side term f(...) using collocation
 !
          do 20 j = 1, 2
-            if (j.eq.1) x = y (m * i) + s1 * h
-            if (j.eq.2) x = y (m * i) + s2 * h
+            if (j.eq.1) x = eqn%x(i) + s1 * h
+            if (j.eq.2) x = eqn%x(i) + s2 * h
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defpde (- 1, t, x, u, ux, ut, uxt, rw)
             do 10 k = 1, npde
-               if (j.eq.1) res (m * (i - 1) + 2 * (k - 1) + 2) = rw (k)
-               if (j.eq.2) res (m * (i) + 2 * (k - 1) + 1) = rw (k)
+               if (j.eq.1) res(m*(i-1) + 2*(k-1) + 2) = rw (k)
+               if (j.eq.2) res(m*(i)   + 2*(k-1) + 1) = rw (k)
    10       end do
    20    end do
 !
@@ -1453,9 +1456,9 @@ module movcol_mod
 !...collocation
 !
          do 40 j = 1, 3
-            if (j.eq.1) x = y (m * i)
-            if (j.eq.2) x = y (m * i) + half * h
-            if (j.eq.3) x = y (m * (i + 1) )
+            if (j.eq.1) x = eqn%x(i)
+            if (j.eq.2) x = eqn%x(i) + h/2.0
+            if (j.eq.3) x = eqn%x(i+1)
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defpde (+ 1, t, x, u, ux, ut, uxt, rw)
             do 30 k = 1, npde
@@ -1862,7 +1865,7 @@ module movcol_mod
 !***********************************************************************
 !***********************************************************************
 !
-      subroutine evlmnt (eqn, npde, npts, t, y, ydot, fmntr, u, ux, uxx, ut, &
+      subroutine evaluate_monitor (eqn, npde, npts, t, y, ydot, fmntr, u, ux, uxx, ut, &
       uxt)
 !
 !...this subroutine computes the monitor function value
@@ -1892,39 +1895,39 @@ module movcol_mod
       real(8) :: h, x, temp
 !
       m = 2 * npde+1
+      fmntr = 0.0
 !
-      do 20 i = 1, npts - 1
-         fmntr (i) = zero
-         h = y (m * (i + 1) ) - y (m * i)
-         do 10 j = 1, 2
-            if (j.eq.1) x = y (m * i) + s1 * h
-            if (j.eq.2) x = y (m * i) + s2 * h
+      do i = 1, npts - 1
+         h = eqn%x(i+1)-eqn%x(i)
+         do j = 1, 2
+            if (j.eq.1) x = eqn%x(i) + s1 * h
+            if (j.eq.2) x = eqn%x(i) + s2 * h
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defmnt (t, x, u, ux, uxx, ut, uxt, temp)
             fmntr (i) = fmntr (i) + half * temp
-   10    end do
-   20 end do
+         end do
+      end do
 !
 !...approximate the monitor function more accurately in the end
 !...subintervals (i.e., for i = 1 and npts-1)
 !
-      do 40 i = 1, npts - 1, npts - 2
+      do i = 1, npts - 1, npts - 2
          fmntr (i) = half * fmntr (i)
-         do 30 j = i, i + 1
+         do j = i, i + 1
             x = y (m * j)
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defmnt (t, x, u, ux, uxx, ut, uxt, temp)
             fmntr (i) = fmntr (i) + quart * temp
-   30    end do
-   40 end do
+         end do
+      end do
 !
       return
-      end subroutine evlmnt
+      end subroutine evaluate_monitor
 !
 !***********************************************************************
 !***********************************************************************
 !
-      subroutine smtmnt (npts, ip, fmntr, rw)
+      subroutine smoothen_monitor (npts, ip, fmntr, rw)
 !
 !...this subroutine smooths the monitor function. it is called
 !...only when mmpde = 2 or mmpde = 3
@@ -1937,23 +1940,21 @@ module movcol_mod
       ! local variables
       integer :: i, j
       real(8) :: gamma = 2.0, temp, temp1
-!
-      do 10 i = 1, npts - 1
-         rw (i) = fmntr (i)
-   10 end do
-      do 30 i = 1, npts - 1
-         temp = zero
-         fmntr (i) = zero
-         do 20 j = max (1, i - ip), min (npts - 1, i + ip)
-            temp1 = (gamma / (gamma + one) ) **iabs (j - i)
+
+      rw = fmntr
+      temp  = 0.0
+      fmntr = 0.0
+      do i = 1, npts - 1
+         do j = max(1, i - ip), min(npts - 1, i + ip)
+            temp1 = (gamma / (gamma + one) )**abs(j - i)
             temp = temp + temp1
             fmntr (i) = fmntr (i) + rw (j) * temp1
-   20    end do
+         end do
          fmntr (i) = fmntr (i) / temp
-   30 end do
+      end do
 !
       return
-      end subroutine smtmnt
+      end subroutine smoothen_monitor
 !
 !***********************************************************************
 !***********************************************************************
@@ -1995,8 +1996,8 @@ module movcol_mod
 !***********************************************************************
 !***********************************************************************
 !
-      subroutine slnout (eqn, t, tstep, istop, index, nts)
-      ! subroutine slnout (eqn, npde, npts, t, y, ydot, touta, ntouta, tstep,  &
+      subroutine solution_out (eqn, t, tstep, istop, index, nts)
+      ! subroutine solution_out (eqn, npde, npts, t, y, ydot, touta, ntouta, tstep,  &
       ! istop, index, nts, u, ux, uxx, ut, uxt, xmesh, xmesht, uu, uux,   &
       ! uut)
 !
@@ -2050,7 +2051,7 @@ module movcol_mod
       eqn%touta, size(eqn%touta), istop, index, nts)
 !
       return
-      end subroutine slnout
+      end subroutine solution_out
 !
 !***********************************************************************
 !***********************************************************************
