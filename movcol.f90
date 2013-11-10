@@ -82,6 +82,9 @@ module movcol_mod
      ! system size and number of mesh points
      integer :: npts, npde
 
+     ! number of steps taken with ddassl
+     integer :: nsteps = 0
+
      ! error flags
      integer :: iflag = 0
      integer :: idid
@@ -215,9 +218,9 @@ module movcol_mod
          return
       end if
       !
-      if(eqn%ip <= 0) then
+      if(eqn%ip < 0) then
          eqn%iflag = 1
-         print *, "ip <= 0"
+         print *, "ip < 0"
          return
       endif
       !
@@ -299,7 +302,8 @@ module movcol_mod
 
       ! if the touta table was not allocate, allocate it as an empty table
       if(.not. allocated(eqn%touta)) then
-         allocate(eqn%touta(0))
+         allocate(eqn%touta(1))
+         eqn%touta=1.0
       end if
 
       allocate(eqn%y   (m,npts))
@@ -1037,8 +1041,6 @@ module movcol_mod
          tout = one
       endif
 
-      print *, "t=", t
-
       atol1 = one
       rtol1 = one
       do itout = 1, 2
@@ -1145,6 +1147,7 @@ module movcol_mod
 
          rtol1 = eqn%rtol
          atol1 = eqn%atol
+         if( eqn%tmp%physpde ) eqn%nsteps = eqn%nsteps+1
 
          call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
               eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
