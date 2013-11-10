@@ -1011,6 +1011,10 @@ contains
      &  LALPHA=11, LBETA=17, LGAMMA=23,                                 &
      &  LPSI=29, LSIGMA=35, LDELTA=41)
 
+      ! we must define H, otherwise
+      ! "Run-Time Check Failure. The variable 'ddassl_mod_mp_ddassl_$H' is being used without being defined"
+      ! pops up
+      H = 0.0
 !
 !***FIRST EXECUTABLE STATEMENT  DDASSL
       IF(INFO(1).NE.0)GO TO 100
@@ -1878,9 +1882,10 @@ contains
 !
   600 CONTINUE
       X = XOLD
-      DO 610 I=1,NEQ
+      do I=1,NEQ
          Y(I)=PHI(I,1)
-  610    YPRIME(I)=PHI(I,2)
+         YPRIME(I)=PHI(I,2)
+      end do
 !
       IF (CONVGD) GO TO 640
       IF (IER.EQ.0) GO TO 620
