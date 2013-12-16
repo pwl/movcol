@@ -956,10 +956,8 @@ module movcol_mod
 !     for solving the physical pde
       if (eqn%tmp%physpde) then
          call eqn%defmsh(eqn%x)
-      endif
-!
+      else
 !     the mesh generation case: starting from a uniform mesh
-      if (.not.eqn%tmp%physpde) then
          do i = 1, npts
             eqn%x (i) = xl + (xr - xl) * (i - 1) / (npts - 1)
          end do
@@ -1068,6 +1066,8 @@ module movcol_mod
          do i = 1, npts
             eqn%x(i) = xl + (xr - xl) * (i - 1) / (npts - 1)
          end do
+         eqn%u  = 0.0
+         eqn%ux = 0.0
       endif
 !
 !     for the physical solution
@@ -1076,11 +1076,6 @@ module movcol_mod
          do i = 1, npts
             call eqn%defivs(eqn%x(i), eqn%u(:,i), eqn%ux(:,i))
          end do
-
-      else
-!        the mesh generation case
-         eqn%u  = zero
-         eqn%ux = zero
       endif
 !
 !...define the input parameters for ddassl
@@ -1385,7 +1380,18 @@ module movcol_mod
          res (m * npts) = ydot (m * npts)
       endif
 !
-      return
+      if( eqn%tmp%physpde ) then
+         open(111,file="dim7.dat")
+         write(111,*) "y="
+         write(111,*) y(1:9), y(m*npts-8:m*npts)
+         write(111,*) "ydot="
+         write(111,*) ydot(1:9), ydot(m*npts-8:m*npts)
+         write(111,*) "res="
+         write(111,*) res(1:9), res(m*npts-8:m*npts)
+         close(111)
+         stop
+      end if
+
       end subroutine resode
 !
 !***********************************************************************

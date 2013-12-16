@@ -2915,14 +2915,14 @@ contains
       REAL(8)  ATOLI, RTOLI
 !
 !***FIRST EXECUTABLE STATEMENT  DDAWTS
-      RTOLI=RTOL(1)
-      ATOLI=ATOL(1)
-      DO 20 I=1,NEQ
-         IF (IWT .EQ.0) GO TO 10
-           RTOLI=RTOL(I)
-           ATOLI=ATOL(I)
-   10      WT(I)=RTOLI*ABS(Y(I))+ATOLI
-   20      CONTINUE
+      do i = 1, NEQ
+         if( IWT /= 0 ) then
+            WT(I) = RTOL(I)*ABS(Y(I))+ATOL(I)
+         else
+            WT(I) = RTOL(1)*ABS(Y(I))+ATOL(1)
+         end if
+      end do
+
       RETURN
 !-----------END OF SUBROUTINE DDAWTS------------------------------------
       END subroutine ddawts
