@@ -10,25 +10,11 @@ module movcol_mod
 
   use ddassl_mod
 
-  ! numerical parameters
-  real(8), parameter ::&
-       &zero  = 0.0  ,&
-       &quart = 0.25 ,&
-       &half  = 0.5  ,&
-       &one   = 1.0  ,&
-       &two   = 2.0  ,&
-       &three = 3.0  ,&
-       &four  = 4.0  ,&
-       &six   = 6.0
-
   ! algorithm parameters?
   real(8), parameter ::&
        &tau1 = 1.e-4,&
        &s1 = 0.211324865347452,&
        &s2 = 0.788675134652548
-
-  ! real(16), parameter ::&
-  !      &tau2 = 0.0001_16
 
   private
 
@@ -995,8 +981,8 @@ module movcol_mod
          end do
       else
 !        the mesh generation case
-         eqn%u  = zero
-         eqn%ux = zero
+         eqn%u  = 0.0
+         eqn%ux = 0.0
       endif
 !
 !...define the input parameters for ddassl
@@ -1019,28 +1005,28 @@ module movcol_mod
       rwk (2) = min (sqrt (zrmch), atol, rtol)
       info (8) = 1
 !        define the initial time stepsize
-      rwk (3) = rwk (2) * half
+      rwk (3) = rwk (2) * 0.5
       info (9) = 1
 !        define the order of the bdf method (1st order)
       iwk (3) = 1
       info (11) = 1
 !        define the initial values for ydot
       do i = 1, neq
-         ydot (i) = zero
+         ydot (i) = 0.0
       end do
 !
 !...take two time integration steps using ddassl
 !
       if (eqn%tmp%physpde) then
          t = touta (1)
-         tout = touta (1) + one
+         tout = touta (1) + 1.0
       else
-         t = zero
-         tout = one
+         t = 0.0
+         tout = 1.0
       endif
 
-      atol1 = one
-      rtol1 = one
+      atol1 = 1.0
+      rtol1 = 1.0
       do itout = 1, 2
          call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
          eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
@@ -1098,8 +1084,8 @@ module movcol_mod
       info (8) = 1
 !        define the initial time stepsize
       temp = abs (touta (ntouta) )
-      if (.not.eqn%tmp%physpde) temp = one
-      rwk (3) = min (stpmax, rtol, atol, temp, one)
+      if (.not.eqn%tmp%physpde) temp = 1.0
+      rwk (3) = min (stpmax, rtol, atol, temp, 1.0)
       info (11) = 1
 !
 !...print the initial solution
@@ -1108,10 +1094,10 @@ module movcol_mod
          t = touta (1)
          index = + 1
       else
-         t = zero
+         t = 0.0
          index = - 1
       endif
-      tstep = zero
+      tstep = 0.0
       istop = 0
       nts = 0
       call eqn%solution_out (t, tstep, istop, index, nts)
@@ -1135,7 +1121,7 @@ module movcol_mod
          if (eqn%tmp%physpde) then
             tout = touta (itout)
          else
-            tout = one
+            tout = 1.0
          endif
 
 110      continue
@@ -1435,12 +1421,12 @@ module movcol_mod
 !...define the weights for the cell-average collocation approximation
 !...to the right-hand-side term
 !
-      w (1, 1) = - one-two * (s2 - s1)
-      w (2, 1) = four * (s2 - s1)
-      w (3, 1) = one-two * (s2 - s1)
-      w (1, 2) = - one+two * (s2 - s1)
-      w (2, 2) = - four * (s2 - s1)
-      w (3, 2) = one+two * (s2 - s1)
+      w (1, 1) = - 1.0-2.0 * (s2 - s1)
+      w (2, 1) = 4.0 * (s2 - s1)
+      w (3, 1) = 1.0-2.0 * (s2 - s1)
+      w (1, 2) = - 1.0+2.0 * (s2 - s1)
+      w (2, 2) = - 4.0 * (s2 - s1)
+      w (3, 2) = 1.0+2.0 * (s2 - s1)
 !
 !...compute the residuals for the discretization of the physical pdes
 !...at the interior (gauss) points
@@ -1570,10 +1556,10 @@ module movcol_mod
 !
                ut (k) = ut (k) + ux (k) * xt
                temp0 = y (m * (i - 1) + 2 * (k - 1) + 1) * fncshp (1, 0,&
-               zero) + y (m * (i - 1) + 2 * (k - 1) + 2) * fncshp (2, 0,&
-               zero) * h + y (m * (i) + 2 * (k - 1) + 1) * fncshp (3, 0,&
-               zero) + y (m * (i) + 2 * (k - 1) + 2) * fncshp (4, 0,    &
-               zero) * h
+               0.0) + y (m * (i - 1) + 2 * (k - 1) + 2) * fncshp (2, 0,&
+               0.0) * h + y (m * (i) + 2 * (k - 1) + 1) * fncshp (3, 0,&
+               0.0) + y (m * (i) + 2 * (k - 1) + 2) * fncshp (4, 0,    &
+               0.0) * h
                temp1 = y (m * (i - 1) + 2 * (k - 1) + 1) * fncshp (1, 0,&
                s1) + y (m * (i - 1) + 2 * (k - 1) + 2) * fncshp (2, 0,  &
                s1) * h + y (m * (i) + 2 * (k - 1) + 1) * fncshp (3, 0,  &
@@ -1585,21 +1571,21 @@ module movcol_mod
                s2) + y (m * (i) + 2 * (k - 1) + 2) * fncshp (4, 0, s2)  &
                * h
                temp3 = y (m * (i - 1) + 2 * (k - 1) + 1) * fncshp (1, 0,&
-               one) + y (m * (i - 1) + 2 * (k - 1) + 2) * fncshp (2, 0, &
-               one) * h + y (m * (i) + 2 * (k - 1) + 1) * fncshp (3, 0, &
-               one) + y (m * (i) + 2 * (k - 1) + 2) * fncshp (4, 0, one)&
+               1.0) + y (m * (i - 1) + 2 * (k - 1) + 2) * fncshp (2, 0, &
+               1.0) * h + y (m * (i) + 2 * (k - 1) + 1) * fncshp (3, 0, &
+               1.0) + y (m * (i) + 2 * (k - 1) + 2) * fncshp (4, 0, 1.0)&
                * h
                if (j.eq.1) then
-                  if (xt.ge.zero) temp = (temp2 - temp1) / (s2 - s1)    &
+                  if (xt.ge.0.0) temp = (temp2 - temp1) / (s2 - s1)    &
                   / h
-                  if (xt.le.zero) temp = (temp1 - temp0) / s1 / h
+                  if (xt.le.0.0) temp = (temp1 - temp0) / s1 / h
                   res (m * (i - 1) + 2 * (k - 1) + 2) = (ut (k) - temp *&
                   xt) - u (k)
                endif
                if (j.eq.2) then
-                  if (xt.ge.zero) temp = (temp3 - temp2) / (one-s2)     &
+                  if (xt.ge.0.0) temp = (temp3 - temp2) / (1.0-s2)     &
                   / h
-                  if (xt.le.zero) temp = (temp2 - temp1) / (s2 - s1)    &
+                  if (xt.le.0.0) temp = (temp2 - temp1) / (s2 - s1)    &
                   / h
                   res (m * (i) + 2 * (k - 1) + 1) = (ut (k) - temp * xt)&
                   - u (k)
@@ -1727,33 +1713,33 @@ module movcol_mod
 !...of mmpde4 in terms of the mesh concentration function at the
 !...interior mesh points
 !
-      xlambd = gamma * (gamma + one)
+      xlambd = gamma * (gamma + 1.0)
       if (mmpde.eq.4) then
          do 40 i = 2, npts - 1
             temp1 = fmntr (i - 1)
             temp2 = fmntr (i)
             ym1 = - (ydot (m * i) - ydot (m * (i - 1) ) ) / (y (m * i)  &
-            - y (m * (i - 1) ) ) **2 * tau + one / (y (m * i) - y (m *  &
+            - y (m * (i - 1) ) ) **2 * tau + 1.0 / (y (m * i) - y (m *  &
             (i - 1) ) )
             yp1 = - (ydot (m * (i + 1) ) - ydot (m * i) ) / (y (m *     &
-            (i + 1) ) - y (m * i) ) **2 * tau + one / (y (m * (i + 1) ) &
+            (i + 1) ) - y (m * i) ) **2 * tau + 1.0 / (y (m * (i + 1) ) &
             - y (m * i) )
             if (i - 2.ge.1) then
                ym3 = - (ydot (m * (i - 1) ) - ydot (m * (i - 2) ) )     &
-               / (y (m * (i - 1) ) - y (m * (i - 2) ) ) **2 * tau + one &
+               / (y (m * (i - 1) ) - y (m * (i - 2) ) ) **2 * tau + 1.0 &
                / (y (m * (i - 1) ) - y (m * (i - 2) ) )
             else
                ym3 = ym1
             endif
             if (i + 2.le.npts) then
                yp3 = - (ydot (m * (i + 2) ) - ydot (m * (i + 1) ) )     &
-               / (y (m * (i + 2) ) - y (m * (i + 1) ) ) **2 * tau + one &
+               / (y (m * (i + 2) ) - y (m * (i + 1) ) ) **2 * tau + 1.0 &
                / (y (m * (i + 2) ) - y (m * (i + 1) ) )
             else
                yp3 = yp1
             endif
-            res (m * i) = (yp1 - xlambd * (yp3 - two * yp1 + ym1) )     &
-            / temp2 - (ym1 - xlambd * (yp1 - two * ym1 + ym3) ) / temp1
+            res (m * i) = (yp1 - xlambd * (yp3 - 2.0 * yp1 + ym1) )     &
+            / temp2 - (ym1 - xlambd * (yp1 - 2.0 * ym1 + ym3) ) / temp1
    40    end do
          return
       endif
@@ -1848,24 +1834,24 @@ module movcol_mod
       integer :: j, k
 !
       if (j.eq.1) then
-         if (k.eq.0) fncshp = (one+two * s) * (one-s) * (one-s)
-         if (k.eq.1) fncshp = - six * s * (one-s)
-         if (k.eq.2) fncshp = - six * (one-two * s)
+         if (k.eq.0) fncshp = (1.0+2.0 * s) * (1.0-s) * (1.0-s)
+         if (k.eq.1) fncshp = - 6.0 * s * (1.0-s)
+         if (k.eq.2) fncshp = - 6.0 * (1.0-2.0 * s)
       endif
       if (j.eq.2) then
-         if (k.eq.0) fncshp = s * (one-s) * (one-s)
-         if (k.eq.1) fncshp = (one-s) * (one-three * s)
-         if (k.eq.2) fncshp = six * s - four
+         if (k.eq.0) fncshp = s * (1.0-s) * (1.0-s)
+         if (k.eq.1) fncshp = (1.0-s) * (1.0-3.0 * s)
+         if (k.eq.2) fncshp = 6.0 * s - 4.0
       endif
       if (j.eq.3) then
-         if (k.eq.0) fncshp = (three-two * s) * s * s
-         if (k.eq.1) fncshp = six * s * (one-s)
-         if (k.eq.2) fncshp = six * (one-two * s)
+         if (k.eq.0) fncshp = (3.0-2.0 * s) * s * s
+         if (k.eq.1) fncshp = 6.0 * s * (1.0-s)
+         if (k.eq.2) fncshp = 6.0 * (1.0-2.0 * s)
       endif
       if (j.eq.4) then
-         if (k.eq.0) fncshp = (s - one) * s * s
-         if (k.eq.1) fncshp = s * (three * s - two)
-         if (k.eq.2) fncshp = six * s - two
+         if (k.eq.0) fncshp = (s - 1.0) * s * s
+         if (k.eq.1) fncshp = s * (3.0 * s - 2.0)
+         if (k.eq.2) fncshp = 6.0 * s - 2.0
       endif
 !
       return
@@ -1913,7 +1899,7 @@ module movcol_mod
             if (j.eq.2) x = eqn%x(i) + s2 * h
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defmnt (t, x, u, ux, uxx, ut, uxt, temp)
-            fmntr (i) = fmntr (i) + half * temp
+            fmntr (i) = fmntr (i) + 0.5 * temp
          end do
       end do
 !
@@ -1921,12 +1907,12 @@ module movcol_mod
 !...subintervals (i.e., for i = 1 and npts-1)
 !
       do i = 1, npts - 1, npts - 2
-         fmntr (i) = half * fmntr (i)
+         fmntr (i) = 0.5 * fmntr (i)
          do j = i, i + 1
             x = y (m * j)
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defmnt (t, x, u, ux, uxx, ut, uxt, temp)
-            fmntr (i) = fmntr (i) + quart * temp
+            fmntr (i) = fmntr (i) + 0.25 * temp
          end do
       end do
 !
@@ -1955,7 +1941,7 @@ module movcol_mod
       fmntr = 0.0
       do i = 1, npts - 1
          do j = max(1, i - ip), min(npts - 1, i + ip)
-            temp1 = (gamma / (gamma + one) )**abs(j - i)
+            temp1 = (gamma / (gamma + 1.0) )**abs(j - i)
             temp = temp + temp1
             fmntr (i) = fmntr (i) + rw (j) * temp1
          end do
