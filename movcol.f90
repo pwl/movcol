@@ -65,6 +65,9 @@ module movcol_mod
      ! relative and absolute error tolerances
      real(8) :: rtol = -1.0, atol = -1.0
 
+     ! parameters not originally in movcol
+     real(8) :: relaxation_time = 1.0
+
      ! system size and number of mesh points
      integer :: npts, npde
 
@@ -1121,7 +1124,7 @@ module movcol_mod
          if (eqn%tmp%physpde) then
             tout = touta (itout)
          else
-            tout = 1.0
+            tout = eqn%relaxation_time
          endif
 
 110      continue
