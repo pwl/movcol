@@ -1322,20 +1322,22 @@ module movcol_mod
 
       m = 2 * npde+1
 
-      y2d(1:m,1:npts) => y(1:m*npts)
+      y2d   (1:m,1:npts) => y(1:m*npts)
       ydot2d(1:m,1:npts) => ydot(1:m*npts)
-      res2d(1:m,1:npts) => res(1:m*npts)
+      res2d (1:m,1:npts) => res(1:m*npts)
 
       ! update the pointers before calling subroutines defined by user
-      eqn%x  => y2d   (m,            :)
-      eqn%u  => y2d   (1:npde,       :)
-      eqn%ux => y2d   (npde+1:2*npde,:)
-      eqn%xt => ydot2d(m,            :)
-      eqn%ut => ydot2d(1:npde,       :)
-      eqn%uxt=> ydot2d(npde+1:2*npde,:)
-      ! eqn%resx => res2d(m,            :)
-      ! eqn%resu => res2d(1:npde,       :)
-      ! eqn%resux=> res2d(npde+1:2*npde,:)
+      eqn%x    => y2d   (m,            :)
+      eqn%u    => y2d   (1:npde,       :)
+      eqn%ux   => y2d   (npde+1:2*npde,:)
+
+      eqn%xt   => ydot2d(m,            :)
+      eqn%ut   => ydot2d(1:npde,       :)
+      eqn%uxt  => ydot2d(npde+1:2*npde,:)
+
+      eqn%resx => res2d (m,            :)
+      eqn%resu => res2d (1:npde,       :)
+      eqn%resux=> res2d (npde+1:2*npde,:)
 
 !
 !...compute residuals of the physical pdes and their bcs
@@ -1365,21 +1367,10 @@ module movcol_mod
            & eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt)
       if (.not.eqn%tmp%physpde) then
 !        the mesh generation case (for which boundaries are fixed)
-         res (m) = ydot (m)
-         res (m * npts) = ydot (m * npts)
+         eqn%resx(   1) = eqn%xt(   1)
+         eqn%resx(npts) = eqn%xt(npts)
       endif
 !
-      if( eqn%tmp%physpde ) then
-         open(111,file="dim7.dat")
-         write(111,*) "y="
-         write(111,*) y(1:9), y(m*npts-8:m*npts)
-         write(111,*) "ydot="
-         write(111,*) ydot(1:9), ydot(m*npts-8:m*npts)
-         write(111,*) "res="
-         write(111,*) res(1:9), res(m*npts-8:m*npts)
-         close(111)
-         stop
-      end if
 
       end subroutine resode
 !
@@ -1424,12 +1415,12 @@ module movcol_mod
 !...define the weights for the cell-average collocation approximation
 !...to the right-hand-side term
 !
-      w (1, 1) = - 1.0-2.0 * (s2 - s1)
-      w (2, 1) = 4.0 * (s2 - s1)
-      w (3, 1) = 1.0-2.0 * (s2 - s1)
-      w (1, 2) = - 1.0+2.0 * (s2 - s1)
-      w (2, 2) = - 4.0 * (s2 - s1)
-      w (3, 2) = 1.0+2.0 * (s2 - s1)
+      w (1, 1) =  -1.0-2.0 * (s2 - s1)
+      w (2, 1) =       4.0 * (s2 - s1)
+      w (3, 1) =   1.0-2.0 * (s2 - s1)
+      w (1, 2) =  -1.0+2.0 * (s2 - s1)
+      w (2, 2) =     - 4.0 * (s2 - s1)
+      w (3, 2) =   1.0+2.0 * (s2 - s1)
 !
 !...compute the residuals for the discretization of the physical pdes
 !...at the interior (gauss) points
