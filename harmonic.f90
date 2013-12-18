@@ -3,8 +3,9 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     real    :: dim = 7
+     real    :: dim = 3
      real    :: amplitude = 0.0
+     real    :: slope = 1.0
    contains
      procedure :: defivs
      procedure :: defout
@@ -13,6 +14,7 @@ module my_problem_mod
      procedure :: defbcp
      procedure :: defbcm
      procedure :: defmnt
+     procedure :: defdt
   end type my_problem
 
   ! this variable is used to communicate with the defout function
@@ -40,23 +42,13 @@ contains
     real(8), dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
     associate(d => eqn%dim)
-      ! if( x < 1.e-3 ) then
-      !    print *, x, d-3, x**(d-3), (x**2*ut+(d-1)/2.0*sin(2*u)), ux
-      ! end if
-      ! if( x < epsilon(1.0) ) then
-      !    fg = 0.0
-      ! else
-      !    if (index.lt.0) fg = x**(d-3)*(x**2*ut+(d-1)/2.0*sin(2*u))
-      !    if (index.gt.0) fg = x**(d-1)*ux
-      ! end if
-
       if (index.lt.0) fg = x**(d-3)*(x**2*ut+(d-1)/2.0*sin(2*u))
       if (index.gt.0) fg = x**(d-1)*ux
-      ! if (index.lt.0) fg = (d-1)/x*ux-(d-1)/2.0/x**2*sin(2*u)
-      ! if (index.gt.0) fg = -ux
     end associate
 
   end subroutine defpde
+
+
   !
   !-----
   ! define the physical boundary conditions, where
@@ -70,8 +62,8 @@ contains
     integer :: index
     real(8) :: t, x, xt
     real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
-    if (index.lt.0) res = u
-    if (index.gt.0) res = u - acos(-1.0)
+    if (index.lt.0) res = u-0.0
+    if (index.gt.0) res = u-eqn%slope
   end subroutine defbcp
 
 
@@ -84,12 +76,33 @@ contains
     class(my_problem) :: eqn
     real(8) :: x, u(eqn%npde), ux(eqn%npde)
 
-    associate(a => eqn%amplitude)
-      u  = x + a*sin(x)
-      ux = 1.0 + a*cos(x)
+    associate(a => eqn%amplitude, s => eqn%slope, x1 => eqn%right_end)
+      u  = s*x + a*sin(acos(-1.0)*x/x1)
+      ux =   s + a*acos(-1.0)/x1*cos(acos(-1.0)*x/x1)
     end associate
 
   end subroutine defivs
+
+  subroutine defdt(eqn, x, ut, uxt)
+    class(my_problem), target :: eqn
+    real(8) :: x, ut(:), uxt(:)
+
+    real(8) :: pi
+    pi = acos(-1.0)
+
+    associate( a => eqn%amplitude, d => eqn%dim, s => eqn%slope, x1 => eqn%right_end )
+      if( x > 1.0e-12 ) then
+         ut(1) = ((-1 + d)*(s + (a*pi*cos((pi*x)/x1))/x1))/x - (a*pi**2*sin((pi*x)/x1))/x1**2 - ((-1 + d)*sin(2*s*x + 2*a*sin((pi*x)/x1)))/(2.*x**2)
+
+         uxt(1)= -((a*pi*x*cos((pi*x)/x1)*(pi**2*x**2 + (-1 + d)*x1**2 + (-1 + d)*x1**2*cos(2*s*x + 2*a*sin((pi*x)/x1))) + (-1 + d)*x1*(s*x*x1**2*cos(2*s*x + 2*a*sin((pi*x)/x1)) + a*pi**2*x**2*sin((pi*x)/x1) + x1**2*(s*x - sin(2*s*x + 2*a*sin((pi*x)/x1)))))/(x**3*x1**3))
+      else
+         ut(1)  = 0.0
+         uxt(1) = (2*a**3*(-1 + d)*pi**3 + 6*a**2*(-1 + d)*pi**2*s*x1 +&
+              & 2*(-1 + d)*s**3*x1**3 - a*pi*((2 + d)*pi**2 - 6*(-1 + d)*s**2*x1**2))/(3.*x1**3)
+      end if
+    end associate
+
+  end subroutine defdt
 
 
   !
@@ -103,7 +116,7 @@ contains
     integer :: i
 
     associate( npts => eqn%npts )
-      xmesh = [(acos(-1.0)*(i-1.0)/(npts-1.0), i=1,npts)]
+      xmesh = [(eqn%left_end+eqn%right_end*(i-1.0)/(npts-1.0), i=1,npts)]
     end associate
 
   end subroutine defmsh
@@ -126,8 +139,8 @@ contains
     integer :: index
     real(8) :: t, x, xt, res
     real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
-    if (index.lt.0) res = x
-    if (index.gt.0) res = x - acos(-1.0)
+    if (index.lt.0) res = xt
+    if (index.gt.0) res = xt
   end subroutine defbcm
 
   !
@@ -141,9 +154,9 @@ contains
     real(8), dimension(eqn%npde) :: u, ux, uxx, ut, uxt
     !     define the arclength monitor function
     fmntr = dsqrt (1. + ux (1) **2)
-    fmntr = sqrt(10.0+ux(1)**2)
-    fmntr = abs(ux(1))
-    fmntr = 1.0
+    ! fmntr = sqrt(10.0+ux(1)**2)
+    ! fmntr = abs(ux(1))
+    ! fmntr = 1.0
     ! fmntr = 10.0+abs(ux(1))+sqrt(abs(ux(1)))
   end subroutine defmnt
 
@@ -196,7 +209,7 @@ contains
 
     end if
 
-    if( u(2,1) > 1.0 ) istop = -1
+    if( ux(2,1) > 1.0e4 ) istop = -1
 
   end subroutine defout
 
@@ -204,19 +217,6 @@ end module my_problem_mod
 
 
 program ex1
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-!                                                                     c
-!                           example 1                                 c
-!                                                                     c
-! this is an example of using movcol to solve burgers' equation with  c
-! an exact solution :                                                 c
-!                                                                     c
-!     u_t = [ 10^(-4) u_x - u^2/2 ]_x, 0 < x < 1, 0 < t <= 1          c
-!     u(0, t) = exact(0, t), u(1, t) = exact(1,t)                     c
-!     u(x, 0) = exact(x, 0)                                           c
-!                                                                     c
-!cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
-! version: nov. 22, 1995
 !
 !-----
 ! set values for some basic parameters and declare arrays
@@ -237,7 +237,7 @@ program ex1
 
   ! set the parameters
   my_eqn%left_end  = 0.0
-  my_eqn%right_end = acos(-1.0)
+  my_eqn%right_end = my_eqn%slope/acos(-1.0)
 
   ! error tolerances
   my_eqn%atol = 1.d-5
@@ -245,8 +245,8 @@ program ex1
 
   ! tau
   my_eqn%tau  = 1.e-6
-  my_eqn%mmpde= 3
-  my_eqn%job  = 2
+  my_eqn%mmpde= 1
+  my_eqn%job  = 1
   ! my_eqn%ip   = 0
 
   ! output times
