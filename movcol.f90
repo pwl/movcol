@@ -1355,11 +1355,15 @@ module movcol_mod
 !...compute and smooth the monitor function
 !
 !     rwk(m21+i) := fmntr(i)
-      if (mmpde.ge.2) call eqn%evaluate_monitor (npde, npts, t, y, ydot,&
-           & eqn%tmp%xmesh, eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut,     &
-           & eqn%tmp%uxt )
-      if (mmpde.eq.2.or.mmpde.eq.3) call smoothen_monitor (npts, ip, eqn%tmp%xmesh&
-      , eqn%tmp%xmesht )
+      if (mmpde.ge.2) then
+         call eqn%evaluate_monitor (npde, npts, t, y, ydot, eqn%tmp%xmesh,&
+              & eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt )
+      end if
+
+      if (mmpde.eq.2.or.mmpde.eq.3) then
+         call smoothen_monitor (npts, ip, eqn%tmp%xmesh, eqn%tmp%xmesht )
+      end if
+
 !
 !...compute residuals for the discrete mesh equations and their bcs.
 !
@@ -1430,16 +1434,15 @@ module movcol_mod
 !
 !...compute the left-hand-side term f(...) using collocation
 !
-         do 20 j = 1, 2
-            if (j.eq.1) x = eqn%x(i) + s1 * h
-            if (j.eq.2) x = eqn%x(i) + s2 * h
-            call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
-            call eqn%defpde (- 1, t, x, u, ux, ut, uxt, rw)
-            do 10 k = 1, npde
-               if (j.eq.1) res(m*(i-1) + 2*(k-1) + 2) = rw (k)
-               if (j.eq.2) res(m*(i)   + 2*(k-1) + 1) = rw (k)
-   10       end do
-   20    end do
+         x = eqn%x(i) + s1 * h
+         call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
+         call eqn%defpde (- 1, t, x, u, ux, ut, uxt,&
+              & eqn%resux(:,  i))
+
+         x = eqn%x(i) + s2 * h
+         call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
+         call eqn%defpde (- 1, t, x, u, ux, ut, uxt,&
+              & eqn%resu (:,i+1))
 !
 !...compute the right-hand-side term [ g(...) ]_x using cell-average
 !...collocation
@@ -1450,36 +1453,36 @@ module movcol_mod
             if (j.eq.3) x = eqn%x(i+1)
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defpde (+ 1, t, x, u, ux, ut, uxt, rw)
-            do 30 k = 1, npde
-               res (m * (i - 1) + 2 * (k - 1) + 2) = res (m * (i - 1)   &
-               + 2 * (k - 1) + 2) - rw (k) * w (j, 1) / h
-               res (m * (i) + 2 * (k - 1) + 1) = res (m * (i) + 2 *     &
-               (k - 1) + 1) - rw (k) * w (j, 2) / h
-   30       end do
+            eqn%resux(:,  i) = eqn%resux(:,  i)-rw(:)*w(j,1)/h
+            eqn%resu (:,i+1) = eqn%resu (:,i+1)-rw(:)*w(j,2)/h
    40    end do
    50 end do
 !
 !...compute the bcs at x = x^l (left end) using collocation
 !
-      x = y (m)
-      xt = ydot (m)
+      x  = eqn%x (1)
+      xt = eqn%xt(1)
       call drvtvs (npde, npts, 1, x, y, ydot, u, ux, uxx, ut, uxt)
-      call eqn%defbcp (- 1, t, x, xt, u, ux, uxx, ut, uxt, rw)
-      do 60 k = 1, npde
-         res (2 * (k - 1) + 1) = rw (k)
-   60 end do
+      call eqn%defbcp (- 1, t, x, xt, u, ux, uxx, ut, uxt,&
+           & eqn%resu (:,1))
 !
 !...compute the bcs at x = x^r (right end) using collocation
 !
-      x = y (m * npts)
-      xt = ydot (m * npts)
-      call drvtvs (npde, npts, npts - 1, x, y, ydot, u, ux, uxx, ut,    &
-      uxt)
-      call eqn%defbcp (+ 1, t, x, xt, u, ux, uxx, ut, uxt, rw)
-      do 70 k = 1, npde
-         res (m * (npts - 1) + 2 * (k - 1) + 2) = rw (k)
-   70 end do
-!
+      x  = eqn%x (npts)
+      xt = eqn%xt(npts)
+      call drvtvs (npde, npts, npts - 1, x, y, ydot, u, ux, uxx, ut, uxt)
+      ! potentially a bug?
+      call eqn%defbcp (+ 1, t, x, xt, u, ux, uxx, ut, uxt,&
+           & eqn%resux(:,npts))
+      ! before changes it looked like
+      !
+      ! do 70 k = 1, npde
+      !       res (m * (npts - 1) + 2 * (k - 1) + 2) = rw (k)
+      ! 70 end do
+      !
+      ! so we compute value at i=npts, but the derivatives are
+      ! computed for i=npts-1, why?
+
       return
       end subroutine respde
 !
