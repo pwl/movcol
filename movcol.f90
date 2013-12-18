@@ -43,7 +43,11 @@ module movcol_mod
      ! pointers to the physical quantities
      real(8), pointer     :: x(:), u(:,:), ux(:,:)
      real(8), pointer     :: xt(:), ut(:,:), uxt(:,:)
-     real(8), pointer     :: resx(:), resu(:,:), resux(:,:)
+     ! these pointers are set by resode to the current residua array
+     ! calculated for ddassl.  resx is a residua for mesh equation and
+     ! resu1 and resu2 are residua computed from physical PDE at
+     ! collocation points s1 and s2.
+     real(8), pointer     :: resx(:), resu1(:,:), resu2(:,:)
      real(8), allocatable :: y(:,:), ydot(:,:)
      ! flat counterparts to y and ydot
      real(8), pointer     :: y_flat(:), ydot_flat(:)
@@ -283,7 +287,7 @@ module movcol_mod
       ! size of eqn%y and eqn%ydot
       lrw1 = 20 + 6 * npde+ (3 * npde+2) * npts
       allocate(eqn%tmp%movcol_rwork(lrw1))
-      ! allocate(eqn%tmp%movcol_iwork(liw))
+
 
       ! initialize work arrays with zeroes
       eqn%tmp%movcol_rwork = 0.0
@@ -323,7 +327,7 @@ module movcol_mod
       allocate(eqn%tmp%uux(npts,npde))  !rwk1(m32+1)
       allocate(eqn%tmp%uut(npts,npde))  !rwk1(m33+1)
 
-!
+
 99910 format(                                                           &
      &/' *****************************************************'         &
      &/' iflag = ',i3                                                   &
@@ -1336,16 +1340,16 @@ module movcol_mod
       eqn%uxt  => ydot2d(npde+1:2*npde,:)
 
       eqn%resx => res2d (m,            :)
-      eqn%resu => res2d (1:npde,       :)
-      eqn%resux=> res2d (npde+1:2*npde,:)
+      eqn%resu1=> res2d (1:npde,       :)
+      eqn%resu2=> res2d (npde+1:2*npde,:)
 
 !
 !...compute residuals of the physical pdes and their bcs
 !
       if (eqn%tmp%physpde) then
 !        the case of solving the physical pdes
-         call eqn%respde (npde, npts, t, y, ydot, res, eqn%tmp%u,       &
-         eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt, eqn%tmp%rw)
+         call eqn%respde (npde, npts, t, y, ydot, eqn%tmp%u,       &
+         eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt)
       else
 !        the mesh generation case
          call eqn%respd1 (npde, npts, t, y, ydot, res, eqn%tmp%u,       &
@@ -1381,8 +1385,7 @@ module movcol_mod
 !***********************************************************************
 !***********************************************************************
 !
-      subroutine respde (eqn, npde, npts, t, y, ydot, res, u, ux, uxx, ut,   &
-      uxt, rw)
+      subroutine respde (eqn, npde, npts, t, y, ydot, u, ux, uxx, ut, uxt)
 !
 !...this subroutine computes the residuals for the discretizations
 !...of the physical pdes and their bcs.
@@ -1400,21 +1403,21 @@ module movcol_mod
 !...
 !...and m = 2*npde+1
 !
-      class(problem_movcol) :: eqn
-      real(8) :: t, y, ydot, res, u, ux, uxx, ut, uxt, rw
+      class(problem_movcol), target :: eqn
+      real(8) :: t, y, ydot, u, ux, uxx, ut, uxt
       integer :: npde, npts
 
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
-      dimension res ( (2 * npde+1) * npts), u (npde), ux (npde),        &
-      uxx (npde)
-      dimension ut (npde), uxt (npde), rw (npde)
+      dimension u (npde), ux (npde), uxx (npde)
+      dimension ut (npde), uxt (npde)
 
       ! local variables
       real(8) :: w(3,2), h, x, xt
-      integer :: i, j, k, m
+      integer :: i, j
 
-!
-      m = 2 * npde+1
+      real(8), pointer :: rw(:)
+
+      rw => eqn%tmp%rw
 !
 !...define the weights for the cell-average collocation approximation
 !...to the right-hand-side term
@@ -1437,12 +1440,12 @@ module movcol_mod
          x = eqn%x(i) + s1 * h
          call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
          call eqn%defpde (- 1, t, x, u, ux, ut, uxt,&
-              & eqn%resux(:,  i))
+              & eqn%resu2(:,  i))
 
          x = eqn%x(i) + s2 * h
          call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
          call eqn%defpde (- 1, t, x, u, ux, ut, uxt,&
-              & eqn%resu (:,i+1))
+              & eqn%resu1(:,i+1))
 !
 !...compute the right-hand-side term [ g(...) ]_x using cell-average
 !...collocation
@@ -1453,8 +1456,9 @@ module movcol_mod
             if (j.eq.3) x = eqn%x(i+1)
             call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
             call eqn%defpde (+ 1, t, x, u, ux, ut, uxt, rw)
-            eqn%resux(:,  i) = eqn%resux(:,  i)-rw(:)*w(j,1)/h
-            eqn%resu (:,i+1) = eqn%resu (:,i+1)-rw(:)*w(j,2)/h
+            ! res = lhs-rhs*w/h
+            eqn%resu2(:,  i) = eqn%resu2(:,  i)-rw(:)*w(j,1)/h
+            eqn%resu1(:,i+1) = eqn%resu1(:,i+1)-rw(:)*w(j,2)/h
    40    end do
    50 end do
 !
@@ -1464,24 +1468,15 @@ module movcol_mod
       xt = eqn%xt(1)
       call drvtvs (npde, npts, 1, x, y, ydot, u, ux, uxx, ut, uxt)
       call eqn%defbcp (- 1, t, x, xt, u, ux, uxx, ut, uxt,&
-           & eqn%resu (:,1))
+           & eqn%resu1(:,1))
 !
 !...compute the bcs at x = x^r (right end) using collocation
 !
       x  = eqn%x (npts)
       xt = eqn%xt(npts)
       call drvtvs (npde, npts, npts - 1, x, y, ydot, u, ux, uxx, ut, uxt)
-      ! potentially a bug?
       call eqn%defbcp (+ 1, t, x, xt, u, ux, uxx, ut, uxt,&
-           & eqn%resux(:,npts))
-      ! before changes it looked like
-      !
-      ! do 70 k = 1, npde
-      !       res (m * (npts - 1) + 2 * (k - 1) + 2) = rw (k)
-      ! 70 end do
-      !
-      ! so we compute value at i=npts, but the derivatives are
-      ! computed for i=npts-1, why?
+           & eqn%resu2(:,npts))
 
       return
       end subroutine respde
