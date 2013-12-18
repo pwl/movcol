@@ -104,6 +104,7 @@ module movcol_mod
      ! procedures defined for parent problem_ddassl
      procedure, public :: res => resode
      procedure, public :: jac => jacode
+     procedure                        defdt
      ! these procedures must be defined in a child class
      procedure(defivs_i), deferred :: defivs
      procedure(defout_i), deferred :: defout
@@ -391,6 +392,18 @@ module movcol_mod
 99995 format(/' **** cpu time for mesh movement: ', f12.2/)
 
     end subroutine movcol_solve
+
+    !>
+    !! The purpose of this function is to define initial values for ut
+    !! and uxt at point x.
+    !!
+    subroutine defdt(eqn, x, ut, uxt)
+      class(problem_movcol), target :: eqn
+      real(8) :: x, ut(:), uxt(:)
+      ut  = 0.0
+      uxt = 0.0
+    end subroutine defdt
+
 
 
 !
@@ -904,6 +917,11 @@ module movcol_mod
       real(8), pointer :: touta(:), y(:), ydot(:)
       integer, pointer :: iwk(:)
 
+      ! temporary variables to test eqn%resode
+      real(8), allocatable, target :: res(:)
+      real(8), pointer :: res2d(:,:)
+      integer :: ires
+
       ! bind the local variables to the variables stored in eqn
       job = eqn%job
       xl  = eqn%left_end
@@ -1016,11 +1034,20 @@ module movcol_mod
       info (9) = 1
 !        define the order of the bdf method (1st order)
       iwk (3) = 1
-      info (11) = 1
+      !
+      !          ****   Are the initial T, Y, YPRIME consistent?
+      !                 Yes - Set INFO(11) = 0
+      !                  No - Set INFO(11) = 1,
+      info (11) = 0
+
 !        define the initial values for ydot
-      do i = 1, neq
-         ydot (i) = 0.0
-      end do
+      ydot = 0.0
+      if(eqn%tmp%physpde) then
+         do i = 1, npts
+            call eqn%defdt(eqn%x(i),eqn%ut(:,i),eqn%uxt(:,i))
+         end do
+      end if
+
 !
 !...take two time integration steps using ddassl
 !
@@ -1034,7 +1061,32 @@ module movcol_mod
 
       atol1 = 1.0
       rtol1 = 1.0
+
+      allocate(res(size(y)))
+
       do itout = 1, 2
+
+         call eqn%res(t, y, ydot, res, ires, rwk1, iwk1)
+
+         res2d (1:m,1:npts) => res(1:m*npts)
+         eqn%resx => res2d (m,            :)
+         eqn%resu1=> res2d (1:npde,       :)
+         eqn%resu2=> res2d (npde+1:2*npde,:)
+
+         if(eqn%tmp%physpde .and. itout == 2) then
+            print *, t
+            do i = 1, 5
+               print '(i,10(ES13.6," "))', i, eqn%x(i), eqn%ut(1,i), eqn%uxt(1,i), eqn%xt(i),&
+                    & eqn%resx(i), eqn%resu1(1,i), eqn%resu2(1,i)
+            end do
+            print *, "      (...)"
+            do i = npts-4, npts
+               print '(i,10(ES13.6," "))', i, eqn%x(i), eqn%ut(1,i), eqn%uxt(1,i), eqn%xt(i),&
+                    & eqn%resx(i), eqn%resu1(1,i), eqn%resu2(1,i)
+            end do
+            stop
+         end if
+
          call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
          eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
       end do
@@ -1114,6 +1166,8 @@ module movcol_mod
          write (inform, 99950) eqn%iflag
          write (inform, 99990) npde, npts, job, inform, mmpde, tau,     &
          gamma, ip, atol, rtol, stpmax, ntouta
+         write (inform, 99970) t, eqn%idid, iwk (14), iwk (15), iwk (11),&
+              iwk (13), iwk (12), iwk (8), rwk (7), rwk (3)
          return
       endif
 !
@@ -1161,6 +1215,8 @@ module movcol_mod
             write (inform, 99950) eqn%iflag
             write (inform, 99990) npde, npts, job, inform, mmpde, tau,  &
             gamma, ip, atol, rtol, stpmax, ntouta
+            write (inform, 99970) t, eqn%idid, iwk (14), iwk (15), iwk (11),&
+              iwk (13), iwk (12), iwk (8), rwk (7), rwk (3)
             return
          endif
 !
