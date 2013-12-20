@@ -6,8 +6,8 @@ ex1: movcol
 harmonic: movcol
 	$(FC) -o $@ harmonic.f90 libmovcol.a linpack/liblinpack.a
 
-movcol: ddassl.o daux.o dlinpk.o movcol.o
-	ar rs libmovcol.a movcol.o ddassl.o daux.o dlinpk.o linpack/liblinpack.a
+movcol: ddassl.o movcol.o
+	ar rs libmovcol.a movcol.o ddassl.o linpack/liblinpack.a
 
 movcol.o: movcol.f90
 	$(FC) -c $<

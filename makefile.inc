@@ -1,9 +1,16 @@
-# ifort
-FCFLAGS=-r8 -i4 -O3 -traceback -llapack -lblas\
-            -fp-model strict -ftrapuv
+# debug version
+FCFLAGS=-r16 -i4 -g -p -fpe0 -traceback -llapack -lblas\
+             -fp-model strict -ftrapuv -double-size 128
 FC=ifort $(FCFLAGS) -u -gen-interfaces\
-          -check all -warn all -warn nounused
+           -check all -warn all -warn nounused
 FC77=ifort $(FCFLAGS)
+
+# optimal version
+# FCFLAGS=-r8 -i4 -O3 -traceback -llapack -lblas\
+# #             -fp-model strict -ftrapuv
+# FC=ifort $(FCFLAGS) -u -gen-interfaces\
+# #           -warn all -warn nounused
+# FC77=ifort $(FCFLAGS)
 
 # gfortran
 # FC=gfortran -llapack -lblas
