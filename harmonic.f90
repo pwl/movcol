@@ -60,10 +60,10 @@ contains
   subroutine defbcp (eqn, index, t, x, xt, u, ux, uxx, ut, uxt,res)
     class(my_problem) :: eqn
     integer :: index
-    real(8) :: t, x, xt
-    real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
-    if (index.lt.0) res = u-0.0
-    if (index.gt.0) res = u-eqn%slope
+    real :: t, x, xt
+    real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
+    if (index.lt.0) res = ut
+    if (index.gt.0) res = u-eqn%slope*eqn%right_end
   end subroutine defbcp
 
 
