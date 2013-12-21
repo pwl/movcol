@@ -3,9 +3,7 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     real    :: dim = 3
-     real    :: amplitude = 0.0
-     real    :: slope = 1.0
+     real    :: dim = 7
    contains
      procedure :: defivs
      procedure :: defout
@@ -14,7 +12,6 @@ module my_problem_mod
      procedure :: defbcp
      procedure :: defbcm
      procedure :: defmnt
-     procedure :: defdt
   end type my_problem
 
   ! this variable is used to communicate with the defout function
@@ -42,8 +39,8 @@ contains
     real, dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
     associate(d => eqn%dim)
-      if (index.lt.0) fg = x**(d-3)*(x**2*ut+(d-1)/2.0*sin(2*u))
-      if (index.gt.0) fg = x**(d-1)*ux
+      if (index.lt.0) fg = ut+(d-1)/2.0/x**2*sin(2*u)-(d-1)/x*ux
+      if (index.gt.0) fg = ux
     end associate
 
   end subroutine defpde
@@ -63,7 +60,8 @@ contains
     real :: t, x, xt
     real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
     if (index.lt.0) res = ut
-    if (index.gt.0) res = u-eqn%slope*eqn%right_end
+    if (index.gt.0) res = u-x
+
   end subroutine defbcp
 
 
@@ -76,34 +74,10 @@ contains
     class(my_problem) :: eqn
     real :: x, u(eqn%npde), ux(eqn%npde)
 
-    associate(a => eqn%amplitude, s => eqn%slope, x1 => eqn%right_end)
-      u  = s*x + a*sin(acos(-1.0)*x/x1)
-      ux =   s + a*acos(-1.0)/x1*cos(acos(-1.0)*x/x1)
-    end associate
+    u  = x
+    ux = 1.0
 
   end subroutine defivs
-
-  subroutine defdt(eqn, x, ut, uxt)
-    class(my_problem), target :: eqn
-    real :: x, ut(:), uxt(:)
-
-    real :: pi
-    pi = acos(-1.0)
-
-    associate( a => eqn%amplitude, d => eqn%dim, s => eqn%slope, x1 => eqn%right_end )
-      if( x > 1.0e-12 ) then
-         ut(1) = ((-1 + d)*(s + (a*pi*cos((pi*x)/x1))/x1))/x - (a*pi**2*sin((pi*x)/x1))/x1**2 - ((-1 + d)*sin(2*s*x + 2*a*sin((pi*x)/x1)))/(2.*x**2)
-
-         uxt(1)= -((a*pi*x*cos((pi*x)/x1)*(pi**2*x**2 + (-1 + d)*x1**2 + (-1 + d)*x1**2*cos(2*s*x + 2*a*sin((pi*x)/x1))) + (-1 + d)*x1*(s*x*x1**2*cos(2*s*x + 2*a*sin((pi*x)/x1)) + a*pi**2*x**2*sin((pi*x)/x1) + x1**2*(s*x - sin(2*s*x + 2*a*sin((pi*x)/x1)))))/(x**3*x1**3))
-      else
-         ut(1)  = 0.0
-         uxt(1) = (2*a**3*(-1 + d)*pi**3 + 6*a**2*(-1 + d)*pi**2*s*x1 +&
-              & 2*(-1 + d)*s**3*x1**3 - a*pi*((2 + d)*pi**2 - 6*(-1 + d)*s**2*x1**2))/(3.*x1**3)
-      end if
-    end associate
-
-  end subroutine defdt
-
 
   !
   !-----
@@ -209,7 +183,8 @@ contains
 
     end if
 
-    if( ux(2,1) > 1.0e4 ) istop = -1
+    ! if( ux(2,1) > 1.0e8 ) istop = -1
+    if( u(2,1) > .1 ) istop = -1
 
   end subroutine defout
 
@@ -233,19 +208,19 @@ program ex1
 
   ! size of mesh and equation number
   my_eqn%npde  =  1
-  my_eqn%npts  = 201
+  my_eqn%npts  = 101
 
   ! set the parameters
   my_eqn%left_end  = 0.0
-  my_eqn%right_end = my_eqn%slope/acos(-1.0)
+  my_eqn%right_end = acos(-1.0)
 
   ! error tolerances
   my_eqn%atol = 1.d-5
   my_eqn%rtol = 1.d-6
 
   ! tau
-  my_eqn%tau  = 1.e-6
-  my_eqn%mmpde= 1
+  my_eqn%tau  = 1.e-10
+  my_eqn%mmpde= 4
   my_eqn%job  = 1
   ! my_eqn%ip   = 0
 
