@@ -1042,11 +1042,6 @@ module movcol_mod
 
 !        define the initial values for ydot
       ydot = 0.0
-      if(eqn%tmp%physpde) then
-         do i = 1, npts
-            call eqn%defdt(eqn%x(i),eqn%ut(:,i),eqn%uxt(:,i))
-         end do
-      end if
 
 !
 !...take two time integration steps using ddassl
@@ -1062,31 +1057,7 @@ module movcol_mod
       atol1 = 1.0
       rtol1 = 1.0
 
-      allocate(res(size(y)))
-
       do itout = 1, 2
-
-         call eqn%res(t, y, ydot, res, ires, rwk1, iwk1)
-
-         res2d (1:m,1:npts) => res(1:m*npts)
-         eqn%resx => res2d (m,            :)
-         eqn%resu1=> res2d (1:npde,       :)
-         eqn%resu2=> res2d (npde+1:2*npde,:)
-
-         if(eqn%tmp%physpde .and. itout == 2) then
-            print *, t
-            do i = 1, 5
-               print '(i,10(ES13.6," "))', i, eqn%x(i), eqn%ut(1,i), eqn%uxt(1,i), eqn%xt(i),&
-                    & eqn%resx(i), eqn%resu1(1,i), eqn%resu2(1,i)
-            end do
-            print *, "      (...)"
-            do i = npts-4, npts
-               print '(i,10(ES13.6," "))', i, eqn%x(i), eqn%ut(1,i), eqn%uxt(1,i), eqn%xt(i),&
-                    & eqn%resx(i), eqn%resu1(1,i), eqn%resu2(1,i)
-            end do
-            stop
-         end if
-
          call ddassl (eqn, neq, t, y, ydot, tout, info, rtol1, atol1,&
          eqn%idid, rwk, lrw, iwk, liw, rwk1, iwk1)
       end do
