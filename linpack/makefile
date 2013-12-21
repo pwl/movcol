@@ -10,7 +10,8 @@ LIB	= liblinpack.a
 	$(FC77) -c $<
 
 linpack: $(OBJ)
-	ar rs $(LIB) $(OBJ)
+	@echo "Creating liblinpack.a"
+	@ar rs $(LIB) $(OBJ)
 
 all: linpack
 
