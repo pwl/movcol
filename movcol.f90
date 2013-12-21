@@ -11,7 +11,7 @@ module movcol_mod
   use ddassl_mod
 
   ! algorithm parameters?
-  real(8), parameter ::&
+  real, parameter ::&
        &tau1 = 1.e-4,&
        &s1 = 0.211324865347452,&
        &s2 = 0.788675134652548
@@ -20,16 +20,16 @@ module movcol_mod
 
   type :: temp_storage
      ! of size npde
-     real(8), allocatable, dimension(:)   :: u, ux, uxx, ut, uxt, rw
+     real, allocatable, dimension(:)   :: u, ux, uxx, ut, uxt, rw
      ! of size npts
-     real(8), allocatable, dimension(:)   :: xmesh, xmesht
+     real, allocatable, dimension(:)   :: xmesh, xmesht
      ! of size npts x npde
-     real(8), allocatable, dimension(:,:) :: uu, uux, uut
+     real, allocatable, dimension(:,:) :: uu, uux, uut
      ! work array for ddassl
-     real(8), allocatable, dimension(:)   :: ddassl_rwork(:)
+     real, allocatable, dimension(:)   :: ddassl_rwork(:)
      integer, allocatable, dimension(:)   :: ddassl_iwork(:)
      ! work arrays for movcol
-     real(8), allocatable, dimension(:) :: movcol_rwork(:)
+     real, allocatable, dimension(:) :: movcol_rwork(:)
      ! integer, allocatable, dimension(:) :: movcol_iwork(:)
      ! old phypde
      logical :: physpde
@@ -41,36 +41,36 @@ module movcol_mod
      type(temp_storage), private :: tmp
 
      ! pointers to the physical quantities
-     real(8), pointer     :: x(:), u(:,:), ux(:,:)
-     real(8), pointer     :: xt(:), ut(:,:), uxt(:,:)
+     real, pointer     :: x(:), u(:,:), ux(:,:)
+     real, pointer     :: xt(:), ut(:,:), uxt(:,:)
      ! these pointers are set by resode to the current residua array
      ! calculated for ddassl.  resx is a residua for mesh equation and
      ! resu1 and resu2 are residua computed from physical PDE at
      ! collocation points s1 and s2.
-     real(8), pointer     :: resx(:), resu1(:,:), resu2(:,:)
-     real(8), allocatable :: y(:,:), ydot(:,:)
+     real, pointer     :: resx(:), resu1(:,:), resu2(:,:)
+     real, allocatable :: y(:,:), ydot(:,:)
      ! flat counterparts to y and ydot
-     real(8), pointer     :: y_flat(:), ydot_flat(:)
+     real, pointer     :: y_flat(:), ydot_flat(:)
 
      ! print times
-     real(8), allocatable :: touta(:)
+     real, allocatable :: touta(:)
 
      ! parameters
      integer :: job       = 2     !par(1)
      integer :: output    = -1    !par(2)
      integer :: mmpde     = 4     !par(3)
-     real(8) :: tau       = 1e-4!par(4)
-     real(8) :: gamma     = 1.0 !par(5)
+     real :: tau       = 1e-4!par(4)
+     real :: gamma     = 1.0 !par(5)
      integer :: ip        = 2.0 !par(6)
-     real(8) :: stpmax    = 1.0/epsilon(0.0) !par(7)
-     real(8) :: left_end  = 0.0 !par(8)
-     real(8) :: right_end = 1.0 !par(9)
+     real :: stpmax    = 1.0/epsilon(0.0) !par(7)
+     real :: left_end  = 0.0 !par(8)
+     real :: right_end = 1.0 !par(9)
 
      ! relative and absolute error tolerances
-     real(8) :: rtol = -1.0, atol = -1.0
+     real :: rtol = -1.0, atol = -1.0
 
      ! parameters not originally in movcol
-     real(8) :: relaxation_time = 1.0
+     real :: relaxation_time = 1.0
 
      ! system size and number of mesh points
      integer :: npts, npde
@@ -120,7 +120,7 @@ module movcol_mod
      subroutine defivs_i (eqn, x, u, ux)
        import problem_movcol
        class(problem_movcol)          :: eqn
-       real(8) :: x, u(eqn%npde), ux(eqn%npde)
+       real :: x, u(eqn%npde), ux(eqn%npde)
      end subroutine defivs_i
 
      subroutine defout_i (eqn, t, xmesh, xmesht, u, ux, ut, tstep,&
@@ -128,47 +128,47 @@ module movcol_mod
        import problem_movcol
        class(problem_movcol)          :: eqn
        integer                        :: ntouta, istop, nts, index
-       real(8), dimension(eqn%npts, eqn%npde) :: u,  ux, ut
-       real(8), dimension(eqn%npts)       :: xmesh, xmesht
-       real(8), dimension(ntouta)     :: touta
-       real(8)                        :: t, tstep
+       real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+       real, dimension(eqn%npts)       :: xmesh, xmesht
+       real, dimension(ntouta)     :: touta
+       real                        :: t, tstep
      end subroutine defout_i
 
      subroutine defmsh_i (eqn, xmesh)
        import problem_movcol
        class(problem_movcol)  :: eqn
-       real(8) :: xmesh(eqn%npts)
+       real :: xmesh(eqn%npts)
      end subroutine defmsh_i
 
      subroutine defpde_i (eqn, index, t, x, u, ux, ut, uxt, fg)
        import problem_movcol
        class(problem_movcol) :: eqn
        integer :: index
-       real(8) :: t, x
-       real(8), dimension(eqn%npde) ::  u, ux, ut, uxt, fg
+       real :: t, x
+       real, dimension(eqn%npde) ::  u, ux, ut, uxt, fg
      end subroutine defpde_i
 
      subroutine defbcp_i (eqn, index, t, x, xt, u, ux, uxx, ut, uxt, res)
        import problem_movcol
        class(problem_movcol)  :: eqn
        integer :: index
-       real(8) :: t, x, xt
-       real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
+       real :: t, x, xt
+       real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
      end subroutine defbcp_i
 
      subroutine defbcm_i (eqn, index, t, x, xt, u, ux, uxx, ut, uxt, res)
        import problem_movcol
        class(problem_movcol)  :: eqn
        integer :: index
-       real(8) :: t, x, xt, res
-       real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
+       real :: t, x, xt, res
+       real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
      end subroutine defbcm_i
 
      subroutine defmnt_i (eqn, t, x, u, ux, uxx, ut, uxt, fmntr)
        import problem_movcol
        class(problem_movcol)  :: eqn
-       real(8) :: t, x, fmntr
-       real(8), dimension(eqn%npde) :: u, ux, uxx, ut, uxt
+       real :: t, x, fmntr
+       real, dimension(eqn%npde) :: u, ux, uxx, ut, uxt
      end subroutine defmnt_i
 
   end interface
@@ -399,7 +399,7 @@ module movcol_mod
     !!
     subroutine defdt(eqn, x, ut, uxt)
       class(problem_movcol), target :: eqn
-      real(8) :: x, ut(:), uxt(:)
+      real :: x, ut(:), uxt(:)
       ut  = 0.0
       uxt = 0.0
     end subroutine defdt
@@ -861,9 +861,9 @@ module movcol_mod
 !...of workspace arrays and calls the main subroutine movcl1
 !
 !
-      ! real(8) :: rtol, atol
+      ! real :: rtol, atol
       ! class(problem_movcol), target :: eqn
-      ! real(8) :: touta(:)
+      ! real :: touta(:)
       ! ! this subroutine doesn't do anything now, do not call it
       ! print *, "Do not call subroutine movcol"
       ! return
@@ -901,7 +901,7 @@ module movcol_mod
 
       ! arrays allocated for ddassl
       integer :: info (15), iwk1 (0)
-      real(8) :: rtol1(1), atol1(1)
+      real :: rtol1(1), atol1(1)
 
       ! this variable controls the execution flow for the whole movcl1
       ! subroutine.  When phypd = TRUE we are solving the physical
@@ -910,16 +910,16 @@ module movcol_mod
       integer :: npde, npts, liw, ip, mmpde, job, lrw, ntouta, index
 
       integer :: m, neq, i, itout, istop, nts, itoutm, inform
-      real(8) :: xl, xr, gamma, stpmax, zrmch, t, tau, temp, tstep
-      real(8) :: tout, rtol, atol, rwk1(0)
+      real :: xl, xr, gamma, stpmax, zrmch, t, tau, temp, tstep
+      real :: tout, rtol, atol, rwk1(0)
 
-      real(8), pointer :: rwk(:)
-      real(8), pointer :: touta(:), y(:), ydot(:)
+      real, pointer :: rwk(:)
+      real, pointer :: touta(:), y(:), ydot(:)
       integer, pointer :: iwk(:)
 
       ! temporary variables to test eqn%resode
-      real(8), allocatable, target :: res(:)
-      real(8), pointer :: res2d(:,:)
+      real, allocatable, target :: res(:)
+      real, pointer :: res2d(:,:)
       integer :: ires
 
       ! bind the local variables to the variables stored in eqn
@@ -1330,9 +1330,9 @@ module movcol_mod
 !
       class(problem_movcol) :: eqn
       integer, dimension(*) :: iwk
-      real(8) :: t, cj
-      real(8), dimension(*) :: y, ydot, rwk
-      real(8), dimension(10,*) :: pd
+      real :: t, cj
+      real, dimension(*) :: y, ydot, rwk
+      real, dimension(10,*) :: pd
       return
       end subroutine jacode
 !
@@ -1361,13 +1361,13 @@ module movcol_mod
       class(problem_movcol) :: eqn
       integer :: ires
       integer, dimension(*) :: iwk
-      real(8) :: t
-      real(8), dimension(*), target :: y, ydot, res, rwk
+      real :: t
+      real, dimension(*), target :: y, ydot, res, rwk
 
       ! local variables
       integer :: npde, npts, mmpde, ip, m
-      real(8) :: tau, gamma
-      real(8), pointer :: y2d(:,:), ydot2d(:,:), res2d(:,:)
+      real :: tau, gamma
+      real, pointer :: y2d(:,:), ydot2d(:,:), res2d(:,:)
 !
 !...define some basic parameters
 !
@@ -1460,7 +1460,7 @@ module movcol_mod
 !...and m = 2*npde+1
 !
       class(problem_movcol), target :: eqn
-      real(8) :: t, y, ydot, u, ux, uxx, ut, uxt
+      real :: t, y, ydot, u, ux, uxx, ut, uxt
       integer :: npde, npts
 
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
@@ -1468,10 +1468,10 @@ module movcol_mod
       dimension ut (npde), uxt (npde)
 
       ! local variables
-      real(8) :: w(3,2), h, x, xt
+      real :: w(3,2), h, x, xt
       integer :: i, j
 
-      real(8), pointer :: rw(:)
+      real, pointer :: rw(:)
 
       rw => eqn%tmp%rw
 !
@@ -1567,7 +1567,7 @@ module movcol_mod
 !...and m = 2*npde+1
 !
       class(problem_movcol) :: eqn
-      real(8) :: t, y, ydot, res, u, ux, uxx, ut, uxt
+      real :: t, y, ydot, res, u, ux, uxx, ut, uxt
       integer :: npde, npts
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension res ( (2 * npde+1) * npts), u (npde), ux (npde),        &
@@ -1576,7 +1576,7 @@ module movcol_mod
 
       ! local variables
       integer :: m, i, j, k
-      real(8) :: h, ht, x, xt, temp, temp0, temp1, temp2, temp3
+      real :: h, ht, x, xt, temp, temp0, temp1, temp2, temp3
 
 !
       m = 2 * npde+1
@@ -1693,7 +1693,7 @@ module movcol_mod
 !...and m = 2*npde+1
 !
       class(problem_movcol) :: eqn
-      real(8) :: tau, y, ydot, res, fmntr, u, ux, uxx, ut, uxt, gamma
+      real :: tau, y, ydot, res, fmntr, u, ux, uxx, ut, uxt, gamma
       integer :: npde, npts, mmpde
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension res ( (2 * npde+1) * npts), fmntr (npts), u (npde)
@@ -1701,7 +1701,7 @@ module movcol_mod
 
       ! local variables
       integer :: m, i
-      real(8) :: x, xt, t, temp, temp1, temp2, ym1, yp1, ym3, yp3, xlambd
+      real :: x, xt, t, temp, temp1, temp2, ym1, yp1, ym3, yp3, xlambd
 
       m = 2 * npde+1
 !
@@ -1817,13 +1817,13 @@ module movcol_mod
 !...and m = 2*npde+1
 !
       integer :: npde, npts, i, j, k
-      real(8) :: y, ydot, u, ux, uxx, ut, uxt, x
+      real :: y, ydot, u, ux, uxx, ut, uxt, x
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension u (npde), ux (npde), uxx (npde), ut (npde), uxt (npde)
 
       ! local variables
       integer :: m
-      real(8) :: h, ht, temp(4,0:2), s
+      real :: h, ht, temp(4,0:2), s
 !
       m = 2 * npde+1
       h = y (m * (i + 1) ) - y (m * i)
@@ -1872,13 +1872,13 @@ module movcol_mod
 !***********************************************************************
 !***********************************************************************
 !
-      real(8) function fncshp (j, k, s)
+      real function fncshp (j, k, s)
 !
 !...this function subroutine computes, at a point s in [0, 1], the
 !...value for the k_th derivative (k =  0, 1 or 2) of the j_th shape
 !...function (j = 1, 2, 3 or 4) for the cubic hermite interpolate
 !
-      real(8) :: s
+      real :: s
       integer :: j, k
 !
       if (j.eq.1) then
@@ -1928,14 +1928,14 @@ module movcol_mod
 !
       class(problem_movcol) :: eqn
       integer :: npde, npts
-      real(8) ::t, y, ydot, fmntr, u, ux, uxx, ut, uxt
+      real ::t, y, ydot, fmntr, u, ux, uxx, ut, uxt
       dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       dimension u (npde), ux (npde), uxx (npde), ut (npde), uxt (npde)
       dimension fmntr (npts)
 
       ! local variables
       integer :: m, i, j
-      real(8) :: h, x, temp
+      real :: h, x, temp
 !
       m = 2 * npde+1
       fmntr = 0.0
@@ -1975,14 +1975,14 @@ module movcol_mod
 !...this subroutine smooths the monitor function. it is called
 !...only when mmpde = 2 or mmpde = 3
 !
-      real(8) :: fmntr, rw
+      real :: fmntr, rw
       integer :: ip
       integer :: npts
       dimension fmntr (npts), rw (npts)
 
       ! local variables
       integer :: i, j
-      real(8) :: gamma = 2.0, temp, temp1
+      real :: gamma = 2.0, temp, temp1
 
       rw = fmntr
       temp  = 0.0
@@ -2010,12 +2010,12 @@ module movcol_mod
 !...mesh values for u and ux
 !
       integer :: npts, npde, k
-      real(8) :: xmesh, u, ux, x, uval, uxval
+      real :: xmesh, u, ux, x, uval, uxval
       dimension xmesh (npts), u (npts, npde), ux (npts, npde)
 
       ! local variables
       integer :: i1, i
-      real(8) :: h, s
+      real :: h, s
 !
       do 10 i1 = 1, npts - 1
          if (xmesh (i1) .le.x.and.x.le.xmesh (i1 + 1) ) then
@@ -2050,10 +2050,10 @@ module movcol_mod
 !
       class(problem_movcol), target :: eqn
       integer :: index, istop, nts
-      real(8) :: t, tstep
+      real :: t, tstep
       ! integer :: npde, npts, ntouta, istop, index, nts
-      ! real(8) :: y, ydot, touta, u, ux, uxx, ut, uxt, xmesh, xmesht, uu, uux, uut
-      ! real(8) :: t, tstep
+      ! real :: y, ydot, touta, u, ux, uxx, ut, uxt, xmesh, xmesht, uu, uux, uut
+      ! real :: t, tstep
       ! dimension y ( (2 * npde+1) * npts), ydot ( (2 * npde+1) * npts)
       ! dimension touta (ntouta), u (npde), ux (npde), uxx (npde)
       ! dimension ut (npde), uxt (npde), xmesh (npts), xmesht (npts)
@@ -2061,7 +2061,7 @@ module movcol_mod
 
       ! local variables
       integer :: npde, npts, m, i, i1
-      real(8) :: x
+      real :: x
       type(temp_storage), pointer :: tmp
       tmp => eqn%tmp
       npde = eqn%npde

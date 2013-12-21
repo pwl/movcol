@@ -38,8 +38,8 @@ contains
   subroutine defpde (eqn, index, t, x, u, ux, ut, uxt, fg)
     class(my_problem) :: eqn
     integer :: index
-    real(8) :: t, x
-    real(8), dimension(eqn%npde) ::  u, ux, ut, uxt, fg
+    real :: t, x
+    real, dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
     associate(d => eqn%dim)
       if (index.lt.0) fg = x**(d-3)*(x**2*ut+(d-1)/2.0*sin(2*u))
@@ -74,7 +74,7 @@ contains
   !
   subroutine defivs (eqn, x, u, ux)
     class(my_problem) :: eqn
-    real(8) :: x, u(eqn%npde), ux(eqn%npde)
+    real :: x, u(eqn%npde), ux(eqn%npde)
 
     associate(a => eqn%amplitude, s => eqn%slope, x1 => eqn%right_end)
       u  = s*x + a*sin(acos(-1.0)*x/x1)
@@ -85,9 +85,9 @@ contains
 
   subroutine defdt(eqn, x, ut, uxt)
     class(my_problem), target :: eqn
-    real(8) :: x, ut(:), uxt(:)
+    real :: x, ut(:), uxt(:)
 
-    real(8) :: pi
+    real :: pi
     pi = acos(-1.0)
 
     associate( a => eqn%amplitude, d => eqn%dim, s => eqn%slope, x1 => eqn%right_end )
@@ -112,7 +112,7 @@ contains
   !
   subroutine defmsh (eqn, xmesh)
     class(my_problem) :: eqn
-    real(8) :: xmesh(eqn%npts)
+    real :: xmesh(eqn%npts)
     integer :: i
 
     associate( npts => eqn%npts )
@@ -137,8 +137,8 @@ contains
   subroutine defbcm (eqn, index, t, x, xt, u, ux, uxx, ut, uxt, res)
     class(my_problem) :: eqn
     integer :: index
-    real(8) :: t, x, xt, res
-    real(8), dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
+    real :: t, x, xt, res
+    real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
     if (index.lt.0) res = xt
     if (index.gt.0) res = xt
   end subroutine defbcm
@@ -150,8 +150,8 @@ contains
   !
   subroutine defmnt (eqn, t, x, u, ux, uxx, ut, uxt, fmntr)
     class(my_problem) :: eqn
-    real(8) :: t, x, fmntr
-    real(8), dimension(eqn%npde) :: u, ux, uxx, ut, uxt
+    real :: t, x, fmntr
+    real, dimension(eqn%npde) :: u, ux, uxx, ut, uxt
     !     define the arclength monitor function
     fmntr = dsqrt (1. + ux (1) **2)
     ! fmntr = sqrt(10.0+ux(1)**2)
@@ -178,10 +178,10 @@ contains
        touta, ntouta, istop, index, nts)
     class(my_problem) :: eqn
     integer :: ntouta, istop, index, nts
-    real(8), dimension(eqn%npts, eqn%npde) :: u,  ux, ut
-    real(8), dimension(eqn%npts)       :: xmesh, xmesht
-    real(8), dimension(ntouta)     :: touta
-    real(8)                        :: t, tstep
+    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+    real, dimension(eqn%npts)       :: xmesh, xmesht
+    real, dimension(ntouta)     :: touta
+    real                        :: t, tstep
 
     integer :: i, npts
     npts = eqn%npts
@@ -225,8 +225,8 @@ program ex1
   use movcol_mod
   use my_problem_mod
 
-  real(8), allocatable :: touta(:)
-  real(8) :: atol, rtol
+  real, allocatable :: touta(:)
+  real :: atol, rtol
   integer :: iflag, npde, npts
 
   type(my_problem) :: my_eqn

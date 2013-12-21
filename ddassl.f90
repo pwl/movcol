@@ -13,17 +13,17 @@ module ddassl_mod
        class(problem_ddassl) :: eqn
        integer :: ires
        integer, dimension(*) :: iwk
-       real(8) :: t
-       real(8), dimension(*), target :: y, ydot, res, rwk
+       real :: t
+       real, dimension(*), target :: y, ydot, res, rwk
      end subroutine res_i
 
      subroutine jac_i(eqn, t, y, ydot, pd,  cj,   rwk, iwk)
        import problem_ddassl
        class(problem_ddassl) :: eqn
        integer, dimension(*) :: iwk
-       real(8) :: t, cj
-       real(8), dimension(*) :: y, ydot, rwk
-       real(8), dimension(10,*) :: pd
+       real :: t, cj
+       real, dimension(*) :: y, ydot, rwk
+       real, dimension(10,*) :: pd
      end subroutine jac_i
 
   end interface
@@ -43,7 +43,7 @@ contains
 !            equations of the form G(T,Y,YPRIME) = 0.
 !***LIBRARY   SLATEC (DASSL)
 !***CATEGORY  I1A2
-!***TYPE      REAL(8) (SDASSL-S, DDASSL-D)
+!***TYPE      REAL (SDASSL-S, DDASSL-D)
 !***KEYWORDS  BACKWARD DIFFERENTIATION FORMULAS, DASSL,
 !             DIFFERENTIAL/ALGEBRAIC, IMPLICIT DIFFERENTIAL SYSTEMS
 !***AUTHOR  Petzold, Linda R., (LLNL)
@@ -57,7 +57,7 @@ contains
 !
 !      EXTERNAL RES, JAC
 !      INTEGER NEQ, INFO(N), IDID, LRW, LIW, IWORK(LIW), IPAR
-!      REAL(8) T, Y(NEQ), YPRIME(NEQ), TOUT, RTOL, ATOL,
+!      REAL T, Y(NEQ), YPRIME(NEQ), TOUT, RTOL, ATOL,
 !     *   RWORK(LRW), RPAR
 !
 !      CALL DDASSL (RES, NEQ, T, Y, YPRIME, TOUT, INFO, RTOL, ATOL,
@@ -65,7 +65,7 @@ contains
 !
 !
 ! *Arguments:
-!  (In the following, all real arrays should be type REAL(8).)
+!  (In the following, all real arrays should be type REAL.)
 !
 !  RES:EXT     This is a subroutine which you provide to define the
 !              differential/algebraic system.
@@ -539,7 +539,7 @@ contains
 !     DDASSL uses a weighted norm DDANRM to measure the size
 !     of vectors such as the estimated error in each step.
 !     A FUNCTION subprogram
-!       REAL(8) FUNCTION DDANRM(NEQ,V,WT,RPAR,IPAR)
+!       REAL FUNCTION DDANRM(NEQ,V,WT,RPAR,IPAR)
 !       DIMENSION V(NEQ),WT(NEQ)
 !     is used to define this norm. Here, V is the vector
 !     whose norm is to be computed, and WT is a vector of
@@ -969,15 +969,10 @@ contains
 !     Declare arguments.
 !
       INTEGER  NEQ, INFO(15), IDID, LRW, IWORK(*), LIW, IPAR(*)
-      REAL(8)                                                  &
+      REAL                                                  &
      &   T, Y(*), YPRIME(*), TOUT, RTOL(*), ATOL(*), RWORK(*),          &
      &   RPAR(*)
       class(problem_ddassl), target :: problem
-!
-!     Declare externals.
-!
-      EXTERNAL  D1MACH
-      REAL(8)  D1MACH
 !
 !     Declare local variables.
 !
@@ -987,7 +982,7 @@ contains
      &   LNRE, LNS, LNST, LNSTL, LPD, LPHASE, LPHI, LPSI, LROUND, LS,   &
      &   LSIGMA, LTN, LTSTOP, LWM, LWT, MBAND, MSAVE, MXORD, NPD, NTEMP,&
      &   NZFLG
-      REAL(8)                                                  &
+      REAL                                                  &
      &   ATOLI, H, HMAX, HMIN, HO, R, RH, RTOLI, TDIST, TN, TNEXT,      &
      &   TSTOP, UROUND, YPNORM
       LOGICAL  DONE
@@ -1156,9 +1151,11 @@ contains
   305    CONTINUE
 !
 !     COMPUTE UNIT ROUNDOFF AND HMIN
-      UROUND = D1MACH(4)
+      UROUND = epsilon(1.0D0)
+      UROUND = 1.e-16
       RWORK(LROUND) = UROUND
       HMIN = 4.0D0*UROUND*MAX(ABS(T),ABS(TOUT))
+      print *, HMIN
 !
 !     CHECK INITIAL INTERVAL TO SEE THAT IT IS LONG ENOUGH
       TDIST = ABS(TOUT - T)
@@ -1356,7 +1353,7 @@ contains
          IF (RH .GT. 1.0D0) H = H/RH
       ENDIF
 !
-      CALL DDASTP(problem,TN,Y,YPRIME,NEQ,                                  &
+      CALL DDASTP(problem,TN,Y,YPRIME,NEQ,                              &
      &   H,RWORK(LWT),INFO(1),IDID,RPAR,IPAR,                           &
      &   RWORK(LPHI),RWORK(LDELTA),RWORK(LE),                           &
      &   RWORK(LWM),IWORK(LIWM),                                        &
@@ -1657,7 +1654,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Initialization routine for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDAINI-S, DDAINI-D)
+!***TYPE      REAL (SDAINI-S, DDAINI-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------
@@ -1706,14 +1703,14 @@ contains
 !***END PROLOGUE  DDAINI
 !
       INTEGER  NEQ, IDID, IPAR(*), IWM(*), NONNEG, NTEMP
-      REAL(8)                                                  &
+      REAL                                                  &
      &   X, Y(*), YPRIME(*), H, WT(*), RPAR(*), PHI(NEQ,*), DELTA(*),   &
      &   E(*), WM(*), HMIN, UROUND
       class(problem_ddassl), target :: problem
 !
       INTEGER  I, IER, IRES, JCALC, LNJE, LNRE, M, MAXIT, MJAC, NCF,    &
      &   NEF, NSF
-      REAL(8)                                                  &
+      REAL                                                  &
      &   CJ, DAMP, DELNRM, ERR, OLDNRM, R, RATE, S, XOLD, YNORM
       LOGICAL  CONVGD
 !
@@ -1922,7 +1919,7 @@ contains
 !***PURPOSE  Compute the iteration matrix for DDASSL and form the
 !            LU-decomposition.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDAJAC-S, DDAJAC-D)
+!***TYPE      REAL (SDAJAC-S, DDAJAC-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -1972,7 +1969,7 @@ contains
 !***END PROLOGUE  DDAJAC
 !
       INTEGER  NEQ, IER, IWM(*), IRES, IPAR(*), NTEMP
-      REAL(8)                                                  &
+      REAL                                                  &
      &   X, Y(*), YPRIME(*), DELTA(*), CJ, H, WT(*), E(*), WM(*),       &
      &   UROUND, RPAR(*)
       class(problem_ddassl), target :: problem
@@ -1982,7 +1979,7 @@ contains
       INTEGER  I, I1, I2, II, IPSAVE, ISAVE, J, K, L, LENPD, LIPVT,     &
      &   LML, LMTYPE, LMU, MBA, MBAND, MEB1, MEBAND, MSAVE, MTYPE, N,   &
      &   NPD, NPDM1, NROW
-      REAL(8)  DEL, DELINV, SQUR, YPSAVE, YSAVE
+      REAL  DEL, DELINV, SQUR, YPSAVE, YSAVE
 !
       PARAMETER (NPD=1)
       PARAMETER (LML=1)
@@ -2026,7 +2023,7 @@ contains
       Y(I)=YSAVE
       YPRIME(I)=YPSAVE
   210 END DO
-!
+   !
 !
 !     DO DENSE-MATRIX LU DECOMPOSITION ON PD
   230    CALL DGEFA(WM(NPD),NEQ,NEQ,IWM(LIPVT),IER)
@@ -2092,12 +2089,12 @@ contains
 !------END OF SUBROUTINE DDAJAC------
       END subroutine ddajac
 !DECK DDANRM
-      REAL(8) FUNCTION DDANRM (NEQ, V, WT, RPAR, IPAR)
+      REAL FUNCTION DDANRM (NEQ, V, WT, RPAR, IPAR)
 !***BEGIN PROLOGUE  DDANRM
 !***SUBSIDIARY
 !***PURPOSE  Compute vector norm for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDANRM-S, DDANRM-D)
+!***TYPE      REAL (SDANRM-S, DDANRM-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2117,10 +2114,10 @@ contains
 !***END PROLOGUE  DDANRM
 !
       INTEGER  NEQ, IPAR(*)
-      REAL(8)  V(NEQ), WT(NEQ), RPAR(*)
+      REAL  V(NEQ), WT(NEQ), RPAR(*)
 !
       INTEGER  I
-      REAL(8)  SUM, VMAX
+      REAL  SUM, VMAX
 !
 !***FIRST EXECUTABLE STATEMENT  DDANRM
       DDANRM = 0.0D0
@@ -2143,7 +2140,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Linear system solver for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDASLV-S, DDASLV-D)
+!***TYPE      REAL (SDASLV-S, DDASLV-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2168,7 +2165,7 @@ contains
 !***END PROLOGUE  DDASLV
 !
       INTEGER  NEQ, IWM(*)
-      REAL(8)  DELTA(*), WM(*)
+      REAL  DELTA(*), WM(*)
 !
       EXTERNAL  DGBSL, DGESL
 !
@@ -2207,7 +2204,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Perform one step of the DDASSL integration.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDASTP-S, DDASTP-D)
+!***TYPE      REAL (SDASTP-S, DDASTP-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2296,7 +2293,7 @@ contains
 !
       INTEGER  NEQ, JSTART, IDID, IPAR(*), IWM(*), IPHASE, JCALC, K,    &
      &   KOLD, NS, NONNEG, NTEMP
-      REAL(8)                                                  &
+      REAL                                                  &
      &   X, Y(*), YPRIME(*), H, WT(*), RPAR(*), PHI(NEQ,*), DELTA(*),   &
      &   E(*), WM(*), ALPHA(*), BETA(*), GAMMA(*), PSI(*), SIGMA(*), CJ,&
      &   CJOLD, HOLD, S, HMIN, UROUND
@@ -2304,7 +2301,7 @@ contains
 !
       INTEGER  I, IER, IRES, J, J1, KDIFF, KM1, KNEW, KP1, KP2, LCTF,   &
      &   LETF, LMXORD, LNJE, LNRE, LNST, M, MAXIT, NCF, NEF, NSF, NSP1
-      REAL(8)                                                  &
+      REAL                                                  &
      &   ALPHA0, ALPHAS, CJLAST, CK, DELNRM, ENORM, ERK, ERKM1,         &
      &   ERKM2, ERKP1, ERR, EST, HNEW, OLDNRM, PNORM, R, RATE, TEMP1,   &
      &   TEMP2, TERK, TERKM1, TERKM2, TERKP1, XOLD, XRATE
@@ -2824,7 +2821,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Interpolation routine for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDATRP-S, DDATRP-D)
+!***TYPE      REAL (SDATRP-S, DDATRP-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2857,10 +2854,10 @@ contains
 !***END PROLOGUE  DDATRP
 !
       INTEGER  NEQ, KOLD
-      REAL(8)  X, XOUT, YOUT(*), YPOUT(*), PHI(NEQ,*), PSI(*)
+      REAL  X, XOUT, YOUT(*), YPOUT(*), PHI(NEQ,*), PSI(*)
 !
       INTEGER  I, J, KOLDP1
-      REAL(8)  C, D, GAMMA, TEMP1
+      REAL  C, D, GAMMA, TEMP1
 !
 !***FIRST EXECUTABLE STATEMENT  DDATRP
       KOLDP1=KOLD+1
@@ -2889,7 +2886,7 @@ contains
 !***SUBSIDIARY
 !***PURPOSE  Set error weight vector for DDASSL.
 !***LIBRARY   SLATEC (DASSL)
-!***TYPE      REAL(8) (SDAWTS-S, DDAWTS-D)
+!***TYPE      REAL (SDAWTS-S, DDAWTS-D)
 !***AUTHOR  Petzold, Linda R., (LLNL)
 !***DESCRIPTION
 !-----------------------------------------------------------------------
@@ -2909,14 +2906,14 @@ contains
 !***END PROLOGUE  DDAWTS
 !
       INTEGER  NEQ, IWT, IPAR(*)
-      REAL(8)  RTOL(*), ATOL(*), Y(*), WT(*), RPAR(*)
+      REAL  RTOL(*), ATOL(*), Y(*), WT(*), RPAR(*)
 !
       INTEGER  I
-      REAL(8)  ATOLI, RTOLI
+      REAL  ATOLI, RTOLI
 !
 !***FIRST EXECUTABLE STATEMENT  DDAWTS
       do i = 1, NEQ
-         if( IWT /= 0 ) then
+         if( IWT /= 0.0D0 ) then
             WT(I) = RTOL(I)*ABS(Y(I))+ATOL(I)
          else
             WT(I) = RTOL(1)*ABS(Y(I))+ATOL(1)
