@@ -4,6 +4,7 @@ module my_problem_mod
 
   type, extends(problem_movcol) :: my_problem
      real    :: dim = 7
+     real    :: k   = 1
    contains
      procedure :: defivs
      procedure :: defout
@@ -38,8 +39,8 @@ contains
     real :: t, x
     real, dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
-    associate(d => eqn%dim)
-      if (index.lt.0) fg = ut+(d-1)/2.0/x**2*sin(2*u)-(d-1)/x*ux
+    associate(d => eqn%dim, k => eqn%k)
+      if (index.lt.0) fg = ut+k*(d+k-2)/2.0/x**2*sin(2*u)-k*(d-1)/x*ux
       if (index.gt.0) fg = ux
     end associate
 
