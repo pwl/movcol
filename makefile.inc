@@ -1,6 +1,6 @@
 # debug version
-FCFLAGS=-r16 -i4 -g -p -fpe0 -traceback -llapack -lblas\
-             -fp-model strict -ftrapuv -double-size 128
+FCFLAGS=-r8 -i4 -g -p -fpe0 -traceback -llapack -lblas\
+             -fp-model strict -ftrapuv -double-size 64
 FC=ifort $(FCFLAGS) -u -gen-interfaces\
            -check all -warn all -warn nounused
 FC77=ifort $(FCFLAGS)
