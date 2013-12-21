@@ -7,7 +7,7 @@ OBJ     = $(patsubst %.f,%.o,$(SRC))
 LIB	= liblinpack.a
 
 %.o: %.f
-	$(FC77) -c $<
+	@$(FC77) -c $<
 
 linpack: $(OBJ)
 	@echo "Creating liblinpack.a"
