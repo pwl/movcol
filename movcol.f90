@@ -83,7 +83,10 @@ module movcol_mod
      integer :: idid
 
      ! output file id
-     integer :: nprnt = 111
+     integer, allocatable :: nprnt(:)
+     ! output file names
+     character(len=:), allocatable :: filenames(:)
+
      ! information is written to this unit
      integer :: inform = 6
    contains
@@ -328,6 +331,7 @@ module movcol_mod
       allocate(eqn%tmp%uux(npts,npde))  !rwk1(m32+1)
       allocate(eqn%tmp%uut(npts,npde))  !rwk1(m33+1)
 
+      allocate(eqn%nprnt(size(eqn%filenames)))
 
 99910 format(                                                           &
      &/' *****************************************************'         &
@@ -359,18 +363,21 @@ module movcol_mod
 
     end subroutine movcol_init
 
-    subroutine movcol_solve(eqn, filename)
+    subroutine movcol_solve(eqn)
       class(problem_movcol) :: eqn
-      character(len=*) :: filename
 
       real :: tcpu, tcpu1, tcpu2, timaray(2)
+
+      integer :: i
 
       if( eqn%iflag /= 0 ) then
          print *, "ERROR: cannot start solver, check iflag"
          return
       end if
 
-      open(newunit = eqn%nprnt, file = filename)
+      do i = 1, size(eqn%filenames)
+         open(newunit = eqn%nprnt(i), file = eqn%filenames(i))
+      end do
 
       call etime (timaray, tcpu1)
 
@@ -387,7 +394,11 @@ module movcol_mod
       !-----
 
       write (6, 99995) tcpu
-      close (eqn%nprnt)
+
+      do i = 1, size(eqn%filenames)
+         close(eqn%nprnt(i))
+      end do
+
       !
 99995 format(/' **** cpu time for mesh movement: ', f12.2/)
 

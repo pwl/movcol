@@ -3,8 +3,8 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     real    :: dim = 7
-     real    :: k   = 1
+     integer    :: dim = 7
+     integer    :: k   = 1
    contains
      procedure :: defivs
      procedure :: defout
@@ -175,17 +175,22 @@ contains
     !
     if( mod(eqn%nsteps,50) == 0 )  then
 
-       write(eqn%nprnt, *)
-       write(eqn%nprnt, *)
-       write(eqn%nprnt, '("# t = ", g0)') t
+       write(eqn%nprnt(1), *)
+       write(eqn%nprnt(1), *)
+       write(eqn%nprnt(1), '("# t = ", g0)') t
        do i = 1, npts
-          write(eqn%nprnt, *) xmesh(i), u(i,1), ux(i,1)
+          write(eqn%nprnt(1), *) xmesh(i), u(i,1), ux(i,1)
        end do
 
     end if
 
-    ! if( ux(2,1) > 1.0e8 ) istop = -1
-    if( u(2,1) > .1 ) istop = -1
+
+    if( mod(eqn%nsteps,1) == 0 )  then
+       write(eqn%nprnt(2), *) t, ux(1,1)
+    end if
+
+    if( ux(2,1) > 1.0e9 ) istop = -1
+    ! if( u(2,1) > .05 ) istop = -1
 
   end subroutine defout
 
@@ -205,34 +210,51 @@ program ex1
   real :: atol, rtol
   integer :: iflag, npde, npts
 
-  type(my_problem) :: my_eqn
+  type(my_problem), allocatable :: my_eqn
+  character(len=200) :: dirname
 
-  ! size of mesh and equation number
-  my_eqn%npde  =  1
-  my_eqn%npts  = 101
+  do npts = 100, 800, 100
+     allocate(my_eqn)
 
-  ! set the parameters
-  my_eqn%left_end  = 0.0
-  my_eqn%right_end = acos(-1.0)
+     ! size of mesh and equation number
+     my_eqn%npde  =  1
+     my_eqn%npts  = npts
 
-  ! error tolerances
-  my_eqn%atol = 1.d-5
-  my_eqn%rtol = 1.d-6
+     ! set the parameters
+     my_eqn%left_end  = 0.0
+     my_eqn%right_end = acos(-1.0)
 
-  ! tau
-  my_eqn%tau  = 1.e-10
-  my_eqn%mmpde= 4
-  my_eqn%job  = 1
-  ! my_eqn%ip   = 0
+     ! error tolerances
+     my_eqn%atol = 1.d-5
+     my_eqn%rtol = 1.d-6
 
-  ! output times
-  allocate(my_eqn%touta(2))
-  my_eqn%touta = [0.00, 10.00]
+     ! tau
+     my_eqn%tau  = 1.e-11
+     my_eqn%mmpde= 4
+     my_eqn%job  = 1
+     ! my_eqn%ip   = 0
 
-  ! initialize solver
-  call my_eqn%init()
+     ! output times
+     allocate(my_eqn%touta(2))
+     my_eqn%touta = [0.00, 10.00]
 
-  ! solve the equations
-  call my_eqn%solve("soln.dat")
+     ! output files
+     allocate(character(len=200) :: my_eqn%filenames(2))
+
+     write(dirname, '("data/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') my_eqn%dim, my_eqn%k, my_eqn%npts
+     ! make sure the directory exists
+     call system('mkdir -p '//trim(dirname))
+     ! append the particular file names
+     my_eqn%filenames = trim(dirname) // ["soln.dat","at0.dat"]
+
+     ! initialize solver
+     call my_eqn%init()
+
+     ! solve the equations
+     call my_eqn%solve()
+
+     deallocate(my_eqn)
+
+  end do
 
 end program ex1
