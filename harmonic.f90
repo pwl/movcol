@@ -40,7 +40,7 @@ contains
     real, dimension(eqn%npde) ::  u, ux, ut, uxt, fg
 
     associate(d => eqn%dim, k => eqn%k)
-      if (index.lt.0) fg = ut+k*(d+k-2)/2.0/x**2*sin(2*u)-k*(d-1)/x*ux
+      if (index.lt.0) fg = ut+k*(d+k-2)/2.0/x**2*sin(2*u)-(d-1)/x*ux
       if (index.gt.0) fg = ux
     end associate
 
