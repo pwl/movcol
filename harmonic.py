@@ -2,28 +2,28 @@ import matplotlib.pylab as plt
 import os
 import numpy as np
 import math as m
+import re
 
 def plotn(f):
     data = np.loadtxt(f, dtype=np.dtype([('time',float),('dx',float)]))
     stime = data[-1]['time']
-    p, = plt.plot(-np.log(abs(stime-data['time'])),data['dx']*np.sqrt(stime-data['time']))
+    n = int(re.search('n([0-9]+)',f).group(1))
+    p, = plt.plot(
+        -np.log(abs(stime-data['time'])),
+        data['dx']*np.sqrt(stime-data['time']),
+        label = n)
     return(p)
 
 def main():
-    files = sorted([os.path.join('data/d007/k001',f,'at0.dat') for f in os.listdir('data/d007/k001')])
-    # data = [np.loadtxt(f, dtype=np.dtype([('time',float),('dx',float)])) for f in files]
+    path='data/d027/k003'
+    at0 = sorted([os.path.join(path,f, 'at0.dat') for f in os.listdir(path)])
 
-    # for f in files:
-    #     plotn(f)
+    plots = [plotn(f) for f in at0 ]
 
-    plots = [plotn(f) for f in files ]
+    plt.legend(loc=2)
 
-    plt.legend(plots,files)
-
-    plt.ylim([0,20])
-    plt.xlim([25,35])
-
-    # plotn(data[-1],stime)
+    # plt.ylim([0,10])
+    # plt.xlim([0,35])
 
     plt.show()
 
