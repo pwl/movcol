@@ -1,14 +1,11 @@
 *.idbg
-harmonic
-ex1
 *.o
 *.mod
 *.gz
 *.log
 *.out
 *.dat
-convert
-*.old
-*.111
 .#*
-*.a
+*.so
+examples/*
+!examples/*.f90
