@@ -189,7 +189,7 @@ contains
        write(eqn%nprnt(2), *) t, ux(1,1)
     end if
 
-    if( ux(2,1) > 1.0e9 ) istop = -1
+    if( ux(2,1) > 1.0e7 ) istop = -1
     ! if( u(2,1) > .05 ) istop = -1
 
   end subroutine defout
@@ -213,7 +213,7 @@ program ex1
   type(my_problem), allocatable :: my_eqn
   character(len=200) :: dirname
 
-  do npts = 100, 800, 100
+  do npts = 400, 400, 100
      allocate(my_eqn)
 
      ! size of mesh and equation number
@@ -229,7 +229,7 @@ program ex1
      my_eqn%rtol = 1.d-6
 
      ! tau
-     my_eqn%tau  = 1.e-11
+     my_eqn%tau  = 1.e-10
      my_eqn%mmpde= 4
      my_eqn%job  = 1
      ! my_eqn%ip   = 0
@@ -243,6 +243,7 @@ program ex1
 
      write(dirname, '("data/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') my_eqn%dim, my_eqn%k, my_eqn%npts
      ! make sure the directory exists
+     call system('rm -rf '//trim(dirname))
      call system('mkdir -p '//trim(dirname))
      ! append the particular file names
      my_eqn%filenames = trim(dirname) // ["soln.dat","at0.dat"]

@@ -1,3 +1,5 @@
+*.idbg
+harmonic
 ex1
 *.o
 *.mod

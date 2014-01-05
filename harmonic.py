@@ -15,7 +15,7 @@ def plotn(f):
     return(p)
 
 def main():
-    path='data/d027/k003'
+    path='data/d007/k001'
     at0 = sorted([os.path.join(path,f, 'at0.dat') for f in os.listdir(path)])
 
     plots = [plotn(f) for f in at0 ]
