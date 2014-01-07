@@ -7,5 +7,6 @@
 *.dat
 .#*
 *.so
+*.a
 examples/*
 !examples/*.f90

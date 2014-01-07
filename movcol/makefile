@@ -1,6 +1,6 @@
-libmovcol.so: movcol.o ddassl.o liblinpack.so
+libmovcol.so: movcol.o ddassl.o liblinpack.so libblas.so
 	@echo "Creating $@"
-	@$(FC) -shared -o libmovcol.so movcol.o ddassl.o $(movcoldir)/linpack/liblinpack.so
+	@$(FC) -shared -o libmovcol.so movcol.o ddassl.o $(movcoldir)/linpack/liblinpack.so $(movcoldir)/blas/libblas.so
 
 movcol.o: movcol.f90 ddassl.o
 	@echo "Compiling $@"
@@ -11,8 +11,14 @@ ddassl.o: ddassl.f90
 	@$(FC) -c $<
 
 liblinpack.so:
+	@echo "Compiling $@"
 	@$(MAKE) -C linpack
+
+libblas.so:
+	@echo "Compiling $@"
+	@$(MAKE) -C blas
 
 clean:
 	@$(MAKE) clean -C linpack
-	@rm -f *.o *.so *.mod
+	@$(MAKE) clean -C blas
+	@rm -f *.o *.mod

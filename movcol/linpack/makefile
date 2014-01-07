@@ -6,7 +6,6 @@ OBJ     = $(patsubst %.f,%.o,$(SRC))
 LIB	= liblinpack.so
 
 $(LIB): $(OBJ)
-	@echo "Creating $@"
 	@$(FC77) -shared -o $(LIB) $(OBJ)
 
 %.o: %.f
