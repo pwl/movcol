@@ -279,7 +279,7 @@ program harmonic_bis
      print *, "No zero fund in the initial interval"
   else
      do while( dist > 1.e-30 )
-        print '(i0.4,3(g0,", "))', i, amp1, amp0, dist
+        print '(i0.4,", ",3(g0,", "))', i, amp1, amp0, dist
         ampn = (amp0+amp1)/2.0
         valn = bis(ampn)
         if( val0*valn > 0 ) then
@@ -293,6 +293,6 @@ program harmonic_bis
      end do
   end if
 
-  print '(g0)', (amp1-amp0)/2
+  print '(g0)', (amp1+amp0)/2
 
 end program harmonic_bis
