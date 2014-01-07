@@ -3,7 +3,7 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     integer    :: dim = 17
+     integer    :: dim = 27
      integer    :: k   = 3
      real       :: amplitude
      integer    :: bis = 0
@@ -183,14 +183,14 @@ contains
        write(eqn%nprnt(1), *)
        write(eqn%nprnt(1), '("# t = ", g0)') t
        do i = 1, npts
-          write(eqn%nprnt(1), *) xmesh(i), u(i,1), ux(i,1)
+          write(eqn%nprnt(1), '(3(g0," "))') xmesh(i), u(i,1), ux(i,1)
        end do
 
     end if
 
 
     if( mod(eqn%nsteps,1) == 0 )  then
-       write(eqn%nprnt(2), *) t, ux(1,1)
+       write(eqn%nprnt(2), '(2(g0," "))') t, ux(1,1)
     end if
 
     if( any(u(1:npts/2,1)>1.8) ) then
@@ -241,7 +241,7 @@ contains
     ! output files
     allocate(character(len=200) :: my_eqn%filenames(2))
 
-    write(dirname, '("data_bis/d",i0.3,"/k",i0.3,"/n",i0.4,"/amp",f0.16,"/")') my_eqn%dim, my_eqn%k, my_eqn%npts, my_eqn%amplitude
+    write(dirname, '("data_bis/d",i0.3,"/k",i0.3,"/n",i0.4,"/amp",f0.32,"/")') my_eqn%dim, my_eqn%k, my_eqn%npts, my_eqn%amplitude
     ! make sure the directory exists
     call system('mkdir -p '//trim(dirname))
     ! append the particular file names
@@ -266,27 +266,33 @@ program harmonic_bis
 
   real :: amp0 = 1.0
   real :: amp1 = 3.0
-  real :: ampn, valn, val0
+  real :: ampn, valn, val0, val1
   real :: dist
   integer :: i
 
   dist = amp1-amp0
   i = 0
   val0 = bis(amp0)
-  do while( dist > 1.e-16 )
-     print *, i, amp1, amp0, dist
-     ampn = (amp0+amp1)/2.0
-     valn = bis(ampn)
-     if( val0*valn > 0 ) then
-        amp0 = ampn
-        val0 = valn
-     else
-        amp1 = ampn
-     end if
-     dist = amp1-amp0
-     i = i+1
-  end do
+  val1 = bis(amp1)
 
-  print *, (amp1-amp0)/2
+  if( val0*val1 > 0 ) then
+     print *, "No zero fund in the initial interval"
+  else
+     do while( dist > 1.e-30 )
+        print '(i0.4,3(g0,", "))', i, amp1, amp0, dist
+        ampn = (amp0+amp1)/2.0
+        valn = bis(ampn)
+        if( val0*valn > 0 ) then
+           amp0 = ampn
+           val0 = valn
+        else
+           amp1 = ampn
+        end if
+        dist = amp1-amp0
+        i = i+1
+     end do
+  end if
+
+  print '(g0)', (amp1-amp0)/2
 
 end program harmonic_bis

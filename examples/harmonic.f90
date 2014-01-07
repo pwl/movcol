@@ -179,17 +179,17 @@ contains
        write(eqn%nprnt(1), *)
        write(eqn%nprnt(1), '("# t = ", g0)') t
        do i = 1, npts
-          write(eqn%nprnt(1), *) xmesh(i), u(i,1), ux(i,1)
+          write(eqn%nprnt(1), '(3(g0," "))') xmesh(i), u(i,1), ux(i,1)
        end do
 
     end if
 
 
     if( mod(eqn%nsteps,1) == 0 )  then
-       write(eqn%nprnt(2), *) t, ux(1,1)
+       write(eqn%nprnt(2), '(2(g0," "))') t, ux(1,1)
     end if
 
-    if( ux(2,1) > 1.0e7 ) istop = -1
+    if( ux(2,1) > 1.0e20 ) istop = -1
     ! if( u(2,1) > .05 ) istop = -1
 
   end subroutine defout
@@ -241,7 +241,8 @@ program ex1
      ! output files
      allocate(character(len=200) :: my_eqn%filenames(2))
 
-     write(dirname, '("data/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') my_eqn%dim, my_eqn%k, my_eqn%npts
+     write(dirname, '("data",i0.2,"/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') kind(1.0), my_eqn%dim, my_eqn%k, my_eqn%npts
+
      ! make sure the directory exists
      call system('rm -rf '//trim(dirname))
      call system('mkdir -p '//trim(dirname))
