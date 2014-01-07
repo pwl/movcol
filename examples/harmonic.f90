@@ -229,7 +229,7 @@ program ex1
      my_eqn%rtol = 1.d-6
 
      ! tau
-     my_eqn%tau  = 1.e-10
+     my_eqn%tau  = 1.e-15
      my_eqn%mmpde= 4
      my_eqn%job  = 1
      ! my_eqn%ip   = 0
