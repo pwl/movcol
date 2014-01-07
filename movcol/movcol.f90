@@ -4,8 +4,6 @@
 !!
 !! @brief
 !!
-!! @todo add y_current i ydot_current?
-!!
 module movcol_mod
 
   use ddassl_mod
@@ -13,8 +11,8 @@ module movcol_mod
   ! algorithm parameters?
   real, parameter ::&
        &tau1 = 1.e-4,&
-       &s1 = 0.211324865347452,&
-       &s2 = 0.788675134652548
+       &s1 = 0.5*(1.0-1.0/sqrt(3.0)),&
+       &s2 = 0.5*(1.0+1.0/sqrt(3.0))
 
   private
 
