@@ -190,7 +190,7 @@ contains
     end if
 
     if( ux(2,1) > 1.0e20 ) istop = -1
-    ! if( u(2,1) > .05 ) istop = -1
+    if( u(2,1) > .1 ) istop = -1
 
   end subroutine defout
 
@@ -231,7 +231,7 @@ program ex1
      ! tau
      my_eqn%tau  = 1.e-15
      my_eqn%mmpde= 4
-     my_eqn%job  = 1
+     my_eqn%job  = 2
      ! my_eqn%ip   = 0
 
      ! output times
