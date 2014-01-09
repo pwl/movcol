@@ -132,11 +132,7 @@ contains
     real :: t, x, fmntr
     real, dimension(eqn%npde) :: u, ux, uxx, ut, uxt
     !     define the arclength monitor function
-    fmntr = dsqrt (1. + ux (1) **2)
-    ! fmntr = sqrt(10.0+ux(1)**2)
-    ! fmntr = abs(ux(1))
-    ! fmntr = 1.0
-    ! fmntr = 10.0+abs(ux(1))+sqrt(abs(ux(1)))
+    fmntr = sqrt (1. + ux (1) **2)
   end subroutine defmnt
 
   !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
@@ -177,20 +173,20 @@ contains
     ! output solutions and errors at t = touta(1), ..., touta(ntouta)
     !-----
     !
-    if( mod(eqn%nsteps,50) == 0 )  then
+    if( mod(eqn%nsteps,5) == 0 )  then
 
        write(eqn%nprnt(1), *)
        write(eqn%nprnt(1), *)
-       write(eqn%nprnt(1), '("# t = ", g0)') t
+       write(eqn%nprnt(1), '("# t = ", ES50.32)') t
        do i = 1, npts
-          write(eqn%nprnt(1), '(3(g0," "))') xmesh(i), u(i,1), ux(i,1)
+          write(eqn%nprnt(1), '(3(ES50.32," "))') xmesh(i), u(i,1), ux(i,1)
        end do
 
     end if
 
 
     if( mod(eqn%nsteps,1) == 0 )  then
-       write(eqn%nprnt(2), '(2(g0," "))') t, ux(1,1)
+       write(eqn%nprnt(2), '(2(ES50.32," "))') t, ux(1,1)
     end if
 
     if( any(u(1:npts/2,1)>1.8) ) then
@@ -253,7 +249,11 @@ contains
     ! solve the equations
     call my_eqn%solve()
 
-    bis = my_eqn%bis
+    if( my_eqn%idid <= -2 ) then
+       bis = 0.0
+    else
+       bis = my_eqn%bis
+    end if
 
     deallocate(my_eqn)
 
@@ -275,24 +275,32 @@ program harmonic_bis
   val0 = bis(amp0)
   val1 = bis(amp1)
 
+
   if( val0*val1 > 0 ) then
      print *, "No zero fund in the initial interval"
   else
      do while( dist > 1.e-30 )
-        print '(i0.4,", ",3(g0,", "))', i, amp1, amp0, dist
+        print '(i0.4,", ",3(ES50.32,", "))', i, amp1, amp0, dist
         ampn = (amp0+amp1)/2.0
         valn = bis(ampn)
+
+        if( valn == 0 ) then
+           print *, "Error occured when solving pde."
+           exit
+        end if
+
         if( val0*valn > 0 ) then
            amp0 = ampn
            val0 = valn
         else
            amp1 = ampn
         end if
+
         dist = amp1-amp0
         i = i+1
      end do
   end if
 
-  print '(g0)', (amp1+amp0)/2
+  print '(ES50.32)', (amp1+amp0)/2
 
 end program harmonic_bis
