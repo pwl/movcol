@@ -77,9 +77,9 @@ contains
     class(my_problem) :: eqn
     real :: x, u(eqn%npde), ux(eqn%npde)
 
-    associate( a=>eqn%amplitude )
-      u  = a*sin(x)
-      ux = a*cos(x)
+    associate( a => eqn%amplitude )
+      u  = a*x*(acos(-1.)-x)
+      ux = a*(acos(-1.)-2*x)
     end associate
 
   end subroutine defivs
@@ -215,7 +215,7 @@ contains
 
     ! size of mesh and equation number
     my_eqn%npde  =  1
-    my_eqn%npts  = 200
+    my_eqn%npts  = 100
 
     ! set the parameters
     my_eqn%left_end  = 0.0
@@ -264,7 +264,7 @@ end module my_problem_mod
 program harmonic_bis
   use my_problem_mod
 
-  real :: amp0 = 1.0
+  real :: amp0 = 0.1
   real :: amp1 = 3.0
   real :: ampn, valn, val0, val1
   real :: dist
