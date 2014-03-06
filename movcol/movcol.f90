@@ -22,7 +22,7 @@ module movcol_mod
      ! of size npts
      real, allocatable, dimension(:)   :: xmesh, xmesht
      ! of size npts x npde
-     real, allocatable, dimension(:,:) :: uu, uux, uut
+     real, allocatable, dimension(:,:) :: uu, uux, uut, uuxt
      ! work array for ddassl
      real, allocatable, dimension(:)   :: ddassl_rwork(:)
      integer, allocatable, dimension(:)   :: ddassl_iwork(:)
@@ -124,12 +124,12 @@ module movcol_mod
        real :: x, u(eqn%npde), ux(eqn%npde)
      end subroutine defivs_i
 
-     subroutine defout_i (eqn, t, xmesh, xmesht, u, ux, ut, tstep,&
+     subroutine defout_i (eqn, t, xmesh, xmesht, u, ux, ut, uxt, tstep,&
           touta, ntouta, istop, index, nts)
        import problem_movcol
        class(problem_movcol)          :: eqn
        integer                        :: ntouta, istop, nts, index
-       real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+       real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt
        real, dimension(eqn%npts)       :: xmesh, xmesht
        real, dimension(ntouta)     :: touta
        real                        :: t, tstep
@@ -328,6 +328,7 @@ module movcol_mod
       allocate(eqn%tmp%uu(npts,npde))   !rwk1(m31+1)
       allocate(eqn%tmp%uux(npts,npde))  !rwk1(m32+1)
       allocate(eqn%tmp%uut(npts,npde))  !rwk1(m33+1)
+      allocate(eqn%tmp%uuxt(npts,npde))
 
       allocate(eqn%nprnt(size(eqn%filenames)))
 
@@ -2062,15 +2063,16 @@ module movcol_mod
 !...uu(i,k), uux(i,k) and uut(i,k), respectively
 !
          tmp%xmesh (i) = x
-         tmp%xmesht (i) = eqn%ydot (m, i)
-         tmp%uu (i,:) = tmp%u
-         tmp%uux(i,:) = tmp%ux
-         tmp%uut(i,:) = tmp%ut
+         tmp%xmesht (i)= eqn%ydot (m, i)
+         tmp%uu (i,:)  = tmp%u
+         tmp%uux(i,:)  = tmp%ux
+         tmp%uut(i,:)  = tmp%ut
+         tmp%uuxt(i,:) = tmp%ut
       end do
 !
 !...output the solution values and current time stepsize tstep
 !
-      call eqn%defout (t, tmp%xmesh, tmp%xmesht, tmp%uu, tmp%uux, tmp%uut, tstep,   &
+      call eqn%defout (t, tmp%xmesh, tmp%xmesht, tmp%uu, tmp%uux, tmp%uut, tmp%uuxt, tstep,   &
       eqn%touta, size(eqn%touta), istop, index, nts)
 !
       return
