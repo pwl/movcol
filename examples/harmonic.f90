@@ -3,8 +3,11 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     integer    :: dim = 7
+     integer    :: dim = 8
      integer    :: k   = 1
+     ! this number is used in the monitor function and comes from
+     ! empirical testing.  The best results tended to show for z=1.5
+     real       :: z   = 1.1
    contains
      procedure :: defivs
      procedure :: defout
@@ -128,7 +131,9 @@ contains
     real :: t, x, fmntr
     real, dimension(eqn%npde) :: u, ux, uxx, ut, uxt
     !     define the arclength monitor function
-    fmntr = dsqrt (1. + ux (1) **2)
+    ! fmntr = dsqrt (1. + ux (1) **2)
+    ! fmntr = dsqrt (1. + abs(ux (1)) ** eqn%z)
+    fmntr = 1.0 + abs(ux (1)) ** eqn%z
     ! fmntr = sqrt(10.0+ux(1)**2)
     ! fmntr = abs(ux(1))
     ! fmntr = 1.0
@@ -149,17 +154,18 @@ contains
   ! the code is generating a mesh           when index < 0
   !-----
   !
-  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, tstep,&
+  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, uxt, tstep,&
        touta, ntouta, istop, index, nts)
     class(my_problem) :: eqn
     integer :: ntouta, istop, index, nts
-    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt
     real, dimension(eqn%npts)       :: xmesh, xmesht
     real, dimension(ntouta)     :: touta
     real                        :: t, tstep
 
     integer :: i, npts
     npts = eqn%npts
+
 
     !
     !-----
@@ -173,24 +179,27 @@ contains
     ! output solutions and errors at t = touta(1), ..., touta(ntouta)
     !-----
     !
-    if( mod(eqn%nsteps,50) == 0 )  then
-
-       write(eqn%nprnt(1), *)
-       write(eqn%nprnt(1), *)
-       write(eqn%nprnt(1), '("# t = ", g0)') t
-       do i = 1, npts
-          write(eqn%nprnt(1), '(3(g0," "))') xmesh(i), u(i,1), ux(i,1)
-       end do
-
+    if( eqn%nsteps == 0 ) then
+       write(eqn%nprnt(1),'("# d=", i" k=", i" n=", i," tau=",g0, " z=",g0 )') &
+            & eqn%dim, eqn%k, eqn%npts, eqn%tau, eqn%z
     end if
 
+    if( mod(eqn%nsteps,10) == 0 )  then
+
+       write(eqn%nprnt(1), '("# t = ", g0)') t
+       write(eqn%nprnt(1), '("# dist = ", g0)') 1.0*count(u(:,1)<1.5)/eqn%npts
+       do i = 1, npts
+          write(eqn%nprnt(1), '(3(g0," "))') xmesh(i), u(i,1), ux(i,1), t
+       end do
+       write(eqn%nprnt(1), *)
+    end if
 
     if( mod(eqn%nsteps,1) == 0 )  then
-       write(eqn%nprnt(2), '(2(g0," "))') t, ux(1,1)
+       write(eqn%nprnt(2), '(3(g0," "))') t, ux(1,1), uxt(1,1)
     end if
 
-    if( ux(2,1) > 1.0e20 ) istop = -1
-    if( u(2,1) > .1 ) istop = -1
+    ! if( ux(2,1) > 1.0e10 ) istop = -1
+    if( u(2,1)  > 0.1    ) istop = -1
 
   end subroutine defout
 
@@ -208,13 +217,16 @@ program ex1
 
   real, allocatable :: touta(:)
   real :: atol, rtol
-  integer :: iflag, npde, npts
+  integer :: iflag, npde, npts, d
 
   type(my_problem), allocatable :: my_eqn
   character(len=200) :: dirname
 
-  do npts = 400, 400, 100
+  npts=400
+
+  do d = 8, 20
      allocate(my_eqn)
+     my_eqn%dim   = d
 
      ! size of mesh and equation number
      my_eqn%npde  =  1
@@ -225,11 +237,11 @@ program ex1
      my_eqn%right_end = acos(-1.0)
 
      ! error tolerances
-     my_eqn%atol = 1.d-5
-     my_eqn%rtol = 1.d-6
+     my_eqn%atol = 1.d-6
+     my_eqn%rtol = 1.d-5
 
      ! tau
-     my_eqn%tau  = 1.e-15
+     my_eqn%tau  = 1.e-10
      my_eqn%mmpde= 4
      my_eqn%job  = 2
      ! my_eqn%ip   = 0
