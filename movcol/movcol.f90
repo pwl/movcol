@@ -38,9 +38,11 @@ module movcol_mod
      ! work arrays
      type(temp_storage), private :: tmp
 
-     ! pointers to the physical quantities
+     ! pointers to the physical quantities, updated at every step,
+     ! updated isnide resode subroutine
      real, pointer     :: x(:), u(:,:), ux(:,:)
      real, pointer     :: xt(:), ut(:,:), uxt(:,:)
+     real, pointer     :: uxx(:,:)
      ! these pointers are set by resode to the current residua array
      ! calculated for ddassl.  resx is a residua for mesh equation and
      ! resu1 and resu2 are residua computed from physical PDE at
@@ -114,6 +116,7 @@ module movcol_mod
      procedure(defbcp_i), deferred :: defbcp
      procedure(defbcm_i), deferred :: defbcm
      procedure(defmnt_i), deferred :: defmnt
+     procedure                     :: deftau
   end type problem_movcol
 
   abstract interface
@@ -311,6 +314,9 @@ module movcol_mod
       eqn%x  => eqn%y(m,            :)
       eqn%u  => eqn%y(1:npde,       :)
       eqn%ux => eqn%y(npde+1:2*npde,:)
+      ! uxx is not a part of the eqn%y vector and has to be allocated
+      ! on its own
+      allocate(eqn%uxx(npts,npde))
 
       eqn%xt => eqn%ydot(m,            :)
       eqn%ut => eqn%ydot(1:npde,       :)
@@ -1347,7 +1353,7 @@ module movcol_mod
       real, dimension(*), target :: y, ydot, res, rwk
 
       ! local variables
-      integer :: npde, npts, mmpde, ip, m
+      integer :: npde, npts, mmpde, ip, m, i
       real :: tau, gamma
       real, pointer :: y2d(:,:), ydot2d(:,:), res2d(:,:)
 !
@@ -1360,7 +1366,6 @@ module movcol_mod
       ip = eqn%ip
 
       gamma = eqn%gamma
-      tau = eqn%tau
 
       m = 2 * npde+1
 
@@ -1380,6 +1385,17 @@ module movcol_mod
       eqn%resx => res2d (m,            :)
       eqn%resu1=> res2d (1:npde,       :)
       eqn%resu2=> res2d (npde+1:2*npde,:)
+
+      ! update the second derivatives (uxx) at points x_i
+      do i = 1, npts
+         call drvtvs (npde, npts, min(i, npts-1), eqn%x(i), eqn%y_flat, eqn%ydot_flat,&
+              & eqn%tmp%u, eqn%tmp%ux, eqn%uxx(i,:), eqn%tmp%ut, eqn%tmp%uxt)
+      end do
+
+
+      ! this function gets all the parameters through the eqn type and
+      ! the updated pointers
+      eqn%tau = eqn%deftau()
 
 !
 !...compute residuals of the physical pdes and their bcs
@@ -1409,7 +1425,7 @@ module movcol_mod
 !
 !...compute residuals for the discrete mesh equations and their bcs.
 !
-      call eqn%resmeq ( npde, npts, mmpde, tau, gamma, y, ydot, res, eqn%tmp%xmesh,&
+      call eqn%resmeq ( npde, npts, mmpde, eqn%tau, gamma, y, ydot, res, eqn%tmp%xmesh,&
            & eqn%tmp%u, eqn%tmp%ux, eqn%tmp%uxx, eqn%tmp%ut, eqn%tmp%uxt)
       if (.not.eqn%tmp%physpde) then
 !        the mesh generation case (for which boundaries are fixed)
@@ -2077,6 +2093,18 @@ module movcol_mod
 !
       return
       end subroutine solution_out
+
+
+      ! user can use time-dependent tau by overloading this
+      ! function.  The returned value is an updated tau, which
+      ! replaces eqn%tau.  The default, implemented below is just
+      ! identity function.
+      function deftau(eqn)
+        class(problem_movcol)  :: eqn
+        real :: deftau
+        deftau = eqn%tau
+      end function deftau
+
 !
 !***********************************************************************
 !***********************************************************************
