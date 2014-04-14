@@ -3,11 +3,11 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     integer    :: dim = 8
+     integer    :: dim = 3
      integer    :: k   = 1
      ! this number is used in the monitor function and comes from
      ! empirical testing.  The best results tended to show for z=1.5
-     real       :: z   = 1.1
+     real       :: z   = 1.5
    contains
      procedure :: defivs
      procedure :: defout
@@ -64,7 +64,7 @@ contains
     real :: t, x, xt
     real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
     if (index.lt.0) res = ut
-    if (index.gt.0) res = u-x
+    if (index.gt.0) res = u-acos(-1.0)
 
   end subroutine defbcp
 
@@ -79,7 +79,7 @@ contains
     real :: x, u(eqn%npde), ux(eqn%npde)
 
     u  = x
-    ux = 1.0
+    ux = 1
 
   end subroutine defivs
 
@@ -131,9 +131,9 @@ contains
     real :: t, x, fmntr
     real, dimension(eqn%npde) :: u, ux, uxx, ut, uxt
     !     define the arclength monitor function
-    ! fmntr = dsqrt (1. + ux (1) **2)
+    fmntr = sqrt (1. + ux (1) **2)
     ! fmntr = dsqrt (1. + abs(ux (1)) ** eqn%z)
-    fmntr = 1.0 + abs(ux (1)) ** eqn%z
+    ! fmntr = 1.0 + abs(ux (1)) ** eqn%z
     ! fmntr = sqrt(10.0+ux(1)**2)
     ! fmntr = abs(ux(1))
     ! fmntr = 1.0
@@ -154,11 +154,11 @@ contains
   ! the code is generating a mesh           when index < 0
   !-----
   !
-  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, uxt, tstep,&
+  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, uxt, uxx, tstep,&
        touta, ntouta, istop, index, nts)
     class(my_problem) :: eqn
     integer :: ntouta, istop, index, nts
-    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt
+    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt, uxx
     real, dimension(eqn%npts)       :: xmesh, xmesht
     real, dimension(ntouta)     :: touta
     real                        :: t, tstep
@@ -189,8 +189,11 @@ contains
        write(eqn%nprnt(1), '("# t = ", g0)') t
        write(eqn%nprnt(1), '("# dist = ", g0)') 1.0*count(u(:,1)<1.5)/eqn%npts
        do i = 1, npts
-          write(eqn%nprnt(1), '(3(g0," "))') xmesh(i), u(i,1), ux(i,1), t
+          write(eqn%nprnt(1), '(6(g0," "))') xmesh(i), u(i,1), ux(i,1), uxx(i,1), uxt(i,1), t
        end do
+       ! three new lines to represent a new index for gnuplot
+       write(eqn%nprnt(1), *)
+       write(eqn%nprnt(1), *)
        write(eqn%nprnt(1), *)
     end if
 
@@ -219,56 +222,48 @@ program ex1
   real :: atol, rtol
   integer :: iflag, npde, npts, d
 
-  type(my_problem), allocatable :: my_eqn
+  type(my_problem) :: my_eqn
   character(len=200) :: dirname
 
   npts=400
 
-  do d = 8, 20
-     allocate(my_eqn)
-     my_eqn%dim   = d
+  ! size of mesh and equation number
+  my_eqn%npde  =  1
+  my_eqn%npts  = npts
 
-     ! size of mesh and equation number
-     my_eqn%npde  =  1
-     my_eqn%npts  = npts
+  ! set the parameters
+  my_eqn%left_end  = 0.0
+  my_eqn%right_end = acos(-1.0)
 
-     ! set the parameters
-     my_eqn%left_end  = 0.0
-     my_eqn%right_end = acos(-1.0)
+  ! error tolerances
+  my_eqn%atol = 1.d-6
+  my_eqn%rtol = 1.d-6
 
-     ! error tolerances
-     my_eqn%atol = 1.d-6
-     my_eqn%rtol = 1.d-5
+  ! tau
+  my_eqn%tau  = 1.e-10
+  my_eqn%mmpde= 4
+  my_eqn%job  = 2
+  ! my_eqn%ip   = 0
 
-     ! tau
-     my_eqn%tau  = 1.e-10
-     my_eqn%mmpde= 4
-     my_eqn%job  = 2
-     ! my_eqn%ip   = 0
+  ! output times
+  allocate(my_eqn%touta(2))
+  my_eqn%touta = [0.00, 10.00]
 
-     ! output times
-     allocate(my_eqn%touta(2))
-     my_eqn%touta = [0.00, 10.00]
+  ! output files
+  allocate(character(len=200) :: my_eqn%filenames(2))
 
-     ! output files
-     allocate(character(len=200) :: my_eqn%filenames(2))
+  write(dirname, '("data",i0.2,"/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') kind(1.0), my_eqn%dim, my_eqn%k, my_eqn%npts
 
-     write(dirname, '("data",i0.2,"/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') kind(1.0), my_eqn%dim, my_eqn%k, my_eqn%npts
+  ! make sure the directory exists
+  call system('rm -rf '//trim(dirname))
+  call system('mkdir -p '//trim(dirname))
+  ! append the particular file names
+  my_eqn%filenames = trim(dirname) // ["soln.dat","at0.dat"]
 
-     ! make sure the directory exists
-     call system('rm -rf '//trim(dirname))
-     call system('mkdir -p '//trim(dirname))
-     ! append the particular file names
-     my_eqn%filenames = trim(dirname) // ["soln.dat","at0.dat"]
+  ! initialize solver
+  call my_eqn%init()
 
-     ! initialize solver
-     call my_eqn%init()
-
-     ! solve the equations
-     call my_eqn%solve()
-
-     deallocate(my_eqn)
-
-  end do
+  ! solve the equations
+  call my_eqn%solve()
 
 end program ex1
