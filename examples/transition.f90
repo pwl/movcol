@@ -1,0 +1,294 @@
+module my_problem_mod
+
+  use movcol_mod
+
+  type, extends(problem_movcol) :: my_problem
+     integer    :: dim = 7
+     integer    :: k   = 1
+     ! this number is used in the monitor function and comes from
+     ! empirical testing.  The best results tended to show for z=1.5
+     real       :: z   = 1.5
+     integer    :: winding = 3
+   contains
+     procedure :: defivs
+     procedure :: defout
+     procedure :: defmsh
+     procedure :: defpde
+     procedure :: defbcp
+     procedure :: defbcm
+     procedure :: defmnt
+     procedure :: deftau
+  end type my_problem
+
+  ! this variable is used to communicate with the defout function
+  ! where it controls weather the result will be printed or not
+
+contains
+  !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  !                                                                     c
+  !                 define the physical problem                         c
+  !            subroutines: defpde, defbcp, defivs, defmsh              c
+  !                                                                     c
+  !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  !
+  !-----
+  ! define the physical pdes, where
+  ! fg := f(t, x, u, ux, ut, uxt)      if index < 0
+  ! fg := g(t, x, u, ux, ut, uxt)      if index > 0
+  !-----
+  !
+  ! f=(g)_x
+  subroutine defpde (eqn, index, t, x, u, ux, ut, uxt, fg)
+    class(my_problem) :: eqn
+    integer :: index
+    real :: t, x
+    real, dimension(eqn%npde) ::  u, ux, ut, uxt, fg
+
+    associate(d => eqn%dim, k => eqn%k)
+      if (index.lt.0) fg = ut-(d-3)/x*ux+(u*(d-3)/x**2+(d-1)/2*sin(2*u/x)/x)
+      if (index.gt.0) fg = ux
+    end associate
+
+  end subroutine defpde
+
+
+  !
+  !-----
+  ! define the physical boundary conditions, where
+  ! res(k) := b^l_k(t, x, xt, u, ux, uxx, ut, uxt)  if index < 0
+  ! res(k) := b^r_k(t, x, xt, u, ux, uxx, ut, uxt)  if index > 0
+  ! for k = 1, ..., npde
+  !-----
+  !
+  subroutine defbcp (eqn, index, t, x, xt, u, ux, uxx, ut, uxt,res)
+    class(my_problem) :: eqn
+    integer :: index
+    real :: t, x, xt
+    real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt, res
+    if (index.lt.0) res = ut
+    if (index.gt.0) res = u-eqn%winding*acos(-1.0)**2
+
+  end subroutine defbcp
+
+
+  !
+  !-----
+  ! define the initial values
+  !-----
+  !
+  subroutine defivs (eqn, x, u, ux)
+    class(my_problem) :: eqn
+    real :: x, u(eqn%npde), ux(eqn%npde)
+
+    u  = eqn%winding*(x**2+x*sin(x))
+    ux = eqn%winding*(2*x+(sin(x)+x*cos(x)))
+
+  end subroutine defivs
+
+  !
+  !-----
+  ! define the initial mesh. this mesh is used only when job = 1
+  !-----
+  !
+  subroutine defmsh (eqn, xmesh)
+    class(my_problem) :: eqn
+    real :: xmesh(eqn%npts)
+    integer :: i
+
+    associate( npts => eqn%npts )
+      xmesh = [(eqn%left_end+eqn%right_end*(i-1.0)/(npts-1.0), i=1,npts)]
+    end associate
+
+  end subroutine defmsh
+  !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  !                                                                     c
+  !          define bcs and monitor function for moving mesh            c
+  !               subroutines: defbcm, defmnt                           c
+  !                                                                     c
+  !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  !
+  !-----
+  ! define the boundary conditions for the coordinate transformation,
+  ! where
+  ! res := b^l_m(t, x, xt, u, ux, uxx, ut, uxt)  if index < 0
+  ! res := b^r_m(t, x, xt, u, ux, uxx, ut, uxt)  if index > 0
+  !-----
+  !
+  subroutine defbcm (eqn, index, t, x, xt, u, ux, uxx, ut, uxt, res)
+    class(my_problem) :: eqn
+    integer :: index
+    real :: t, x, xt, res
+    real, dimension(eqn%npde) ::  u, ux, uxx, ut, uxt
+    if (index.lt.0) res = xt
+    if (index.gt.0) res = xt
+  end subroutine defbcm
+
+  !
+  !-----
+  ! define the monitor function
+  !-----
+  !
+  subroutine defmnt (eqn, t, x, u, ux, uxx, ut, uxt, fmntr)
+    class(my_problem) :: eqn
+    real :: t, x, fmntr
+    real, dimension(eqn%npde) :: u, ux, uxx, ut, uxt
+    !     define the arclength monitor function
+    fmntr = sqrt (1.0 + uxx(1)**2/4.0)
+
+  end subroutine defmnt
+
+  function deftau(eqn)
+    class(my_problem)  :: eqn
+    real :: deftau
+    real :: taumax, taumin, d
+    real :: vr, v, r
+    integer :: at = 2
+    taumax = 1.0e-1
+    taumin = 3.0e-4
+    ! d = eqn%uxx(at,1)**2
+    ! vr = eqn%ux(at,1)
+    ! v  = eqn%u(at,1)
+    ! r  = eqn%x(at)
+    ! d = (vr/r-v/r**2)**2
+    d = eqn%uxx(1,1)**4
+    ! d = maxval((eqn%ux(2:,1)/eqn%x(2:)-eqn%u(2:,1)/eqn%x(2:))**2)
+    deftau = (taumax+d*taumin)/(1.0+d)
+  end function deftau
+
+
+  !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  !                                                                     c
+  !                        output solutions                             c
+  !                       subroutine: defout                            c
+  !                                                                     c
+  !cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc
+  !
+  !-----
+  ! output solutions. the time integration may be stopped if istop is set
+  ! less than zero.
+  ! the code is solving the physical pdes   when index > 0
+  ! the code is generating a mesh           when index < 0
+  !-----
+  !
+  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, uxt, uxx, tstep,&
+       touta, ntouta, istop, index, nts)
+    class(my_problem) :: eqn
+    integer :: ntouta, istop, index, nts
+    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt, uxx
+    real, dimension(eqn%npts)       :: xmesh, xmesht
+    real, dimension(ntouta)     :: touta
+    real                        :: t, tstep
+
+    integer :: i, npts
+    npts = eqn%npts
+
+
+    !
+    !-----
+    ! do not output solutions when generating a mesh with respect to
+    ! the given initial values of the physical solution
+    !-----
+    !
+    if (index.lt.0) return
+    !
+    !-----
+    ! output solutions and errors at t = touta(1), ..., touta(ntouta)
+    !-----
+    !
+    if( eqn%nsteps == 0 ) then
+       write(eqn%nprnt(1),'("# d=", i" k=", i" n=", i," tau=",g0, " z=",g0 )') &
+            & eqn%dim, eqn%k, eqn%npts, eqn%tau, eqn%z
+    end if
+
+    if( mod(eqn%nsteps,10) == 0 )  then
+
+       write(eqn%nprnt(1), '("# t = ", g0)') t
+       write(eqn%nprnt(1), '("# dist = ", g0)') 1.0*count(u(:,1)<1.5)/eqn%npts
+       do i = 1, npts
+          write(eqn%nprnt(1), '(6(g0," "))') xmesh(i), u(i,1), ux(i,1), uxx(i,1), uxt(i,1), t
+       end do
+       ! three new lines to represent a new index for gnuplot
+       write(eqn%nprnt(1), *)
+       write(eqn%nprnt(1), *)
+       write(eqn%nprnt(1), *)
+    end if
+
+    if( mod(eqn%nsteps,1) == 0 )  then
+       write(eqn%nprnt(2), '(5(g0," "))') t, ux(1,1), uxt(1,1), uxx(1,1), eqn%tau
+    end if
+
+    if( minval(u(2:,1)/xmesh(2:)) > (eqn%winding-1)*acos(-1.0)+2.8 ) istop = -1
+
+    ! if( ux(2,1) > 1.0e10 ) istop = -1
+    ! if( ux(2,1)  > 0.1    ) istop = -1
+
+  end subroutine defout
+
+end module my_problem_mod
+
+
+program ex1
+!
+!-----
+! set values for some basic parameters and declare arrays
+!-----
+!
+  use movcol_mod
+  use my_problem_mod
+
+  real, allocatable :: touta(:)
+  real :: atol, rtol
+  integer :: iflag, npde, npts, d
+
+  type(my_problem), allocatable :: my_eqn
+  character(len=200) :: dirname
+
+  npts=200
+
+  do d = 8, 8
+     allocate(my_eqn)
+
+     ! size of mesh and equation number
+     my_eqn%npde  =  1
+     my_eqn%npts  = npts
+
+     ! set the parameters
+     my_eqn%left_end  = 0.0
+     my_eqn%right_end = acos(-1.0)
+
+     ! error tolerances
+     my_eqn%atol = 1.d-5
+     my_eqn%rtol = 1.d-5
+
+     ! tau
+     my_eqn%tau  = 1.e-4
+     my_eqn%mmpde= 4
+     my_eqn%job  = 2
+     ! my_eqn%ip   = 0
+
+     ! output times
+     allocate(my_eqn%touta(2))
+     my_eqn%touta = [0.00, 10.00]
+
+     ! output files
+     allocate(character(len=200) :: my_eqn%filenames(2))
+
+     write(dirname, '("data_transition",i0.2,"/d",i0.3,"/k",i0.3,"/n",i0.4,"/")') kind(1.0), my_eqn%dim, my_eqn%k, my_eqn%npts
+
+     ! make sure the directory exists
+     call system('rm -rf '//trim(dirname))
+     call system('mkdir -p '//trim(dirname))
+     ! append the particular file names
+     my_eqn%filenames = trim(dirname) // ["soln.dat","at0.dat"]
+
+     ! initialize solver
+     call my_eqn%init()
+
+     ! solve the equations
+     call my_eqn%solve()
+
+     deallocate(my_eqn)
+
+  end do
+
+end program ex1
