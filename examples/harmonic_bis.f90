@@ -3,8 +3,10 @@ module my_problem_mod
   use movcol_mod
 
   type, extends(problem_movcol) :: my_problem
-     integer    :: dim = 27
-     integer    :: k   = 3
+     ! integer    :: dim = 27
+     ! integer    :: k   = 3
+     integer    :: dim = 8
+     integer    :: k   = 1
      real       :: amplitude
      integer    :: bis = 0
    contains
@@ -78,8 +80,8 @@ contains
     real :: x, u(eqn%npde), ux(eqn%npde)
 
     associate( a => eqn%amplitude )
-      u  = a*x*(acos(-1.)-x)
-      ux = a*(acos(-1.)-2*x)
+      u  = a*sin(x)
+      ux = a*cos(x)
     end associate
 
   end subroutine defivs
@@ -149,11 +151,11 @@ contains
   ! the code is generating a mesh           when index < 0
   !-----
   !
-  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, tstep,&
+  subroutine defout (eqn, t, xmesh, xmesht, u, ux, ut, uxt, uxx, tstep,&
        touta, ntouta, istop, index, nts)
     class(my_problem) :: eqn
     integer :: ntouta, istop, index, nts
-    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut
+    real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt, uxx
     real, dimension(eqn%npts)       :: xmesh, xmesht
     real, dimension(ntouta)     :: touta
     real                        :: t, tstep
@@ -179,7 +181,7 @@ contains
        write(eqn%nprnt(1), *)
        write(eqn%nprnt(1), '("# t = ", ES50.32)') t
        do i = 1, npts
-          write(eqn%nprnt(1), '(3(ES50.32," "))') xmesh(i), u(i,1), ux(i,1)
+          write(eqn%nprnt(1), '(3(ES50.32," "))') xmesh(i), u(i,1), ux(i,1), uxx(i,1)
        end do
 
     end if
@@ -189,7 +191,7 @@ contains
        write(eqn%nprnt(2), '(2(ES50.32," "))') t, ux(1,1)
     end if
 
-    if( any(u(1:npts/2,1)>1.8) ) then
+    if( any(u(:,1)>1.75) ) then
        istop = -1
        eqn%bis = +1
     end if
@@ -215,15 +217,15 @@ contains
 
     ! size of mesh and equation number
     my_eqn%npde  =  1
-    my_eqn%npts  = 100
+    my_eqn%npts  = 400
 
     ! set the parameters
     my_eqn%left_end  = 0.0
     my_eqn%right_end = acos(-1.0)
 
     ! error tolerances
-    my_eqn%atol = 1.d-5
-    my_eqn%rtol = 1.d-6
+    my_eqn%atol = 1.d-6
+    my_eqn%rtol = 1.d-5
 
     ! tau
     my_eqn%tau  = 1.e-10
