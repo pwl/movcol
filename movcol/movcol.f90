@@ -22,7 +22,7 @@ module movcol_mod
      ! of size npts
      real, allocatable, dimension(:)   :: xmesh, xmesht
      ! of size npts x npde
-     real, allocatable, dimension(:,:) :: uu, uux, uut, uuxt
+     real, allocatable, dimension(:,:) :: uu, uux, uut, uuxt, uuxx
      ! work array for ddassl
      real, allocatable, dimension(:)   :: ddassl_rwork(:)
      integer, allocatable, dimension(:)   :: ddassl_iwork(:)
@@ -124,12 +124,12 @@ module movcol_mod
        real :: x, u(eqn%npde), ux(eqn%npde)
      end subroutine defivs_i
 
-     subroutine defout_i (eqn, t, xmesh, xmesht, u, ux, ut, uxt, tstep,&
+     subroutine defout_i (eqn, t, xmesh, xmesht, u, ux, ut, uxt, uxx, tstep,&
           touta, ntouta, istop, index, nts)
        import problem_movcol
        class(problem_movcol)          :: eqn
        integer                        :: ntouta, istop, nts, index
-       real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt
+       real, dimension(eqn%npts, eqn%npde) :: u,  ux, ut, uxt, uxx
        real, dimension(eqn%npts)       :: xmesh, xmesht
        real, dimension(ntouta)     :: touta
        real                        :: t, tstep
@@ -329,6 +329,7 @@ module movcol_mod
       allocate(eqn%tmp%uux(npts,npde))  !rwk1(m32+1)
       allocate(eqn%tmp%uut(npts,npde))  !rwk1(m33+1)
       allocate(eqn%tmp%uuxt(npts,npde))
+      allocate(eqn%tmp%uuxx(npts,npde))
 
       allocate(eqn%nprnt(size(eqn%filenames)))
 
@@ -1476,13 +1477,11 @@ module movcol_mod
 !
          x = eqn%x(i) + s1 * h
          call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
-         call eqn%defpde (- 1, t, x, u, ux, ut, uxt,&
-              & eqn%resu2(:,  i))
+         call eqn%defpde (- 1, t, x, u, ux, ut, uxt, eqn%resu2(:,  i))
 
          x = eqn%x(i) + s2 * h
          call drvtvs (npde, npts, i, x, y, ydot, u, ux, uxx, ut, uxt)
-         call eqn%defpde (- 1, t, x, u, ux, ut, uxt,&
-              & eqn%resu1(:,i+1))
+         call eqn%defpde (- 1, t, x, u, ux, ut, uxt, eqn%resu1(:,i+1))
 !
 !...compute the right-hand-side term [ g(...) ]_x using cell-average
 !...collocation
@@ -1689,9 +1688,9 @@ module movcol_mod
 !...mmpde = 1: fixed mesh
 !
       if (mmpde.eq.1) then
-         do 10 i = 1, npts
+         do i = 1, npts
             res (m * i) = ydot (m * i)
-   10    end do
+         end do
          return
       endif
 !
@@ -2067,12 +2066,13 @@ module movcol_mod
          tmp%uu (i,:)  = tmp%u
          tmp%uux(i,:)  = tmp%ux
          tmp%uut(i,:)  = tmp%ut
-         tmp%uuxt(i,:) = tmp%ut
+         tmp%uuxt(i,:) = tmp%uxt
+         tmp%uuxx(i,:) = tmp%uxx
       end do
 !
 !...output the solution values and current time stepsize tstep
 !
-      call eqn%defout (t, tmp%xmesh, tmp%xmesht, tmp%uu, tmp%uux, tmp%uut, tmp%uuxt, tstep,   &
+      call eqn%defout (t, tmp%xmesh, tmp%xmesht, tmp%uu, tmp%uux, tmp%uut, tmp%uuxt, tmp%uuxx, tstep,   &
       eqn%touta, size(eqn%touta), istop, index, nts)
 !
       return
